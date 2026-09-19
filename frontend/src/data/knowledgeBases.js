@@ -2,7 +2,7 @@
 export const knowledgeBases = [
   {
     id: 1,
-    name: '人力资源知识库',
+    name: '公司制度知识库',
     description: '员工手册、考勤制度与差旅报销政策。',
     documentCount: 3,
     category: '人力资源',

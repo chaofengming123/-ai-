@@ -2,7 +2,7 @@
 
 从零逐步实现 Vue 3 + Spring Boot 企业知识管理与 RAG 问答系统。
 
-当前已完成第 1 课：Vue 3 + JavaScript + Vite 前端，包含侧边导航和 Mock Data 知识库列表。尚未接入后端或数据库。
+当前已完成第 2 课：Vue 3 + JavaScript + Vite 前端，包含侧边导航、Mock Data 知识库列表和新建表单。新增数据仅在内存中保存，刷新后恢复初始数据。尚未接入后端或数据库。
 
 ## 启动前端
 
@@ -27,7 +27,9 @@ npm run dev
 - [学习进度与教学偏好](docs/learning-progress.md)
 - [第 1 课：让数据变成知识库页面](docs/lesson-01.md)
 
-下一小节加入模拟创建知识库。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
+- [第 2 课：新建知识库，让页面响应操作](docs/lesson-02.md)
+
+下一小节加入 Vue Router，让导航切换页面。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
 
 ## Git 约定
 
