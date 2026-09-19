@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import KnowledgeBaseCard from '../components/KnowledgeBaseCard.vue'
 import { knowledgeBases as initialKnowledgeBases } from '../data/knowledgeBases.js'
 
 // 将初始数据复制到响应式列表，新增操作不会修改原始示例数组。
@@ -9,6 +10,16 @@ const name = ref('')
 const description = ref('')
 const error = ref('')
 const notice = ref('')
+const detailDialog = ref(null)
+const selectedKnowledgeBase = ref(null)
+
+function openKnowledgeBaseDetail(id) {
+  const knowledgeBase = knowledgeBases.value.find(item => item.id === id)
+  if (!knowledgeBase) return
+
+  selectedKnowledgeBase.value = knowledgeBase
+  detailDialog.value.showModal()
+}
 
 function openCreateDialog() {
   name.value = ''
@@ -66,20 +77,12 @@ function createKnowledgeBase() {
       <span>按业务领域整理</span>
     </div>
     <div class="knowledge-grid">
-      <article v-for="knowledgeBase in knowledgeBases" :key="knowledgeBase.id" class="knowledge-card">
-        <div class="card-topline">
-          <span class="folder-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3V7Z" />
-              <path d="M3 10h18" />
-            </svg>
-          </span>
-          <span class="category">{{ knowledgeBase.category }}</span>
-        </div>
-        <h3>{{ knowledgeBase.name }}</h3>
-        <p>{{ knowledgeBase.description }}</p>
-        <footer><span class="document-dot" aria-hidden="true"></span>{{ knowledgeBase.documentCount }} 份文档</footer>
-      </article>
+      <KnowledgeBaseCard
+        v-for="knowledgeBase in knowledgeBases"
+        :key="knowledgeBase.id"
+        :knowledge-base="knowledgeBase"
+        @view-detail="openKnowledgeBaseDetail"
+      />
     </div>
     <p class="demo-note">当前使用模拟数据；新增内容仅在本次页面打开期间有效，刷新后恢复初始数据。</p>
     <dialog ref="createDialog" class="create-dialog" aria-labelledby="create-title" aria-describedby="create-hint">
@@ -99,6 +102,19 @@ function createKnowledgeBase() {
           <button type="submit" class="primary-button">创建</button>
         </div>
       </form>
+    </dialog>
+    <dialog ref="detailDialog" class="create-dialog" aria-labelledby="detail-title">
+      <h2 id="detail-title">知识库详情</h2>
+      <dl v-if="selectedKnowledgeBase" class="detail-fields">
+        <dt>名称</dt><dd>{{ selectedKnowledgeBase.name }}</dd>
+        <dt>描述</dt><dd>{{ selectedKnowledgeBase.description }}</dd>
+        <dt>分类</dt><dd>{{ selectedKnowledgeBase.category }}</dd>
+        <dt>文档数量</dt><dd>{{ selectedKnowledgeBase.documentCount }} 份文档</dd>
+      </dl>
+      <p class="form-hint">当前仅展示模拟数据，尚未接入真实文档。</p>
+      <div class="dialog-actions">
+        <button type="button" class="primary-button" autofocus @click="detailDialog.close()">关闭</button>
+      </div>
     </dialog>
   </section>
 </template>
