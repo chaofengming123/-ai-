@@ -97,3 +97,10 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
 .form-error { color: #ac3030; font-size: 13px; line-height: 1.6; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 @media (max-width: 1100px) { .page-heading { align-items: flex-start; flex-direction: column; } }
+
+.empty-panel { padding: 32px; border: 1px solid #dfe7e1; border-radius: 12px; background: #fff; }
+.empty-panel h2 { font-size: 20px; line-height: 1.6; }
+.empty-panel .demo-badge { display: inline-block; margin-bottom: 20px; }
+.empty-panel p { color: #63736b; font-size: 14px; line-height: 1.9; max-width: 640px; }
+.page-link { display: inline-block; margin-top: 16px; text-decoration: none; }
+.nav-item:not(.active):hover { background: #233c35; color: #e4f2e9; }
