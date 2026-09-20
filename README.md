@@ -14,7 +14,7 @@ npm run dev
 
 打开终端显示的本地地址。`npm run build` 检查并生成生产构建。
 
-## 启动后端（第 8 课）
+## 启动后端（第 9 课）
 
 需要 Java 17，使用工程自带的 Maven Wrapper，无需全局 Maven。
 
@@ -23,12 +23,12 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
-访问 `http://127.0.0.1:8080/api/health`，返回服务状态 JSON。`./mvnw test` 运行接口测试。首次运行需联网下载构建工具和依赖。当前前端仍使用模拟数据，尚未调用后端。
+访问 `http://127.0.0.1:8080/api/health`，返回服务状态 JSON。知识库 API 支持 GET `/api/knowledge-bases`、GET `/api/knowledge-bases/{id}` 与 POST `/api/knowledge-bases`，数据暂存后端内存，重启后重置。`./mvnw test` 运行接口测试。首次运行需联网下载构建工具和依赖。当前前端仍使用模拟数据，尚未调用后端。
 
 ## 目录
 
 - `frontend/`：Vue 前端代码。
-- `backend/`：Spring Boot 后端，已提供健康检查接口。
+- `backend/`：Spring Boot 后端，已提供健康检查和内存知识库接口。
 - `docker/`：后续容器与部署配置。
 - `docs/`：学习手册、课程与进度记录。
 
@@ -52,7 +52,9 @@ cd backend
 
 - [第 8 课：Spring Boot，第一个真实 HTTP 接口](docs/lesson-08.md)
 
-下一小节实现内存知识库 REST API，之后再连接前端和数据库。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
+- [第 9 课：知识库 API 与 Controller / Service 分工](docs/lesson-09.md)
+
+下一小节连接前端与真实接口，之后加入数据库。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
 
 ## Git 约定
 
