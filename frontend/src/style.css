@@ -119,3 +119,8 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
 .search-controls button { flex-shrink: 0; }
 .search-controls button:disabled { opacity: .5; cursor: default; }
 .search-panel p { color: #63736b; font-size: 12px; margin: 10px 0 0; }
+
+.overview-stat { padding: 26px 30px; margin-bottom: 24px; border: 1px solid #dfe7e1; border-radius: 12px; background: #fff; }
+.overview-stat > span { color: #63736b; font-size: 14px; }
+.overview-stat strong { display: block; font-size: 40px; margin: 12px 0; font-weight: 600; }
+.overview-stat p { color: #63736b; font-size: 13px; line-height: 1.8; margin: 0; }

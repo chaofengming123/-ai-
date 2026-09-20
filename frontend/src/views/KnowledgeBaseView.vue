@@ -1,10 +1,12 @@
 <script setup>
 import { computed, ref } from 'vue'
 import KnowledgeBaseCard from '../components/KnowledgeBaseCard.vue'
-import { knowledgeBases as initialKnowledgeBases } from '../data/knowledgeBases.js'
+import { storeToRefs } from 'pinia'
+import { useKnowledgeBaseStore } from '../stores/knowledgeBases.js'
 
-// 将初始数据复制到响应式列表，新增操作不会修改原始示例数组。
-const knowledgeBases = ref(initialKnowledgeBases.map(item => ({ ...item })))
+// 两个页面使用同一份 store，搜索词与弹窗仍由当前页面管理。
+const knowledgeBaseStore = useKnowledgeBaseStore()
+const { knowledgeBases } = storeToRefs(knowledgeBaseStore)
 const searchQuery = ref('')
 
 // 计算结果用于展示，完整列表仍保存在 knowledgeBases 中。
@@ -44,31 +46,16 @@ function openCreateDialog() {
 }
 
 function createKnowledgeBase() {
-  const trimmedName = name.value.trim()
-  const trimmedDescription = description.value.trim()
-
-  if (!trimmedName) {
-    error.value = '请输入知识库名称，不能只填写空格。'
-    return
-  }
-  if (trimmedName.length > 60 || trimmedDescription.length > 300) {
-    error.value = '名称最多 60 个字符，描述最多 300 个字符。'
-    return
-  }
-  if (knowledgeBases.value.some(item => item.name === trimmedName)) {
-    error.value = '这个名称已经存在，请换一个名称。'
-    return
-  }
-
-  knowledgeBases.value.push({
-    id: crypto.randomUUID(),
-    name: trimmedName,
-    description: trimmedDescription || '暂无描述',
-    documentCount: 0,
-    category: '自建知识库',
+  const result = knowledgeBaseStore.addKnowledgeBase({
+    name: name.value,
+    description: description.value,
   })
+  if (result.error) {
+    error.value = result.error
+    return
+  }
   createDialog.value.close()
-  notice.value = `已创建“${trimmedName}”。刷新页面后将恢复示例数据。${searchQuery.value.trim() ? '当前列表仍按搜索词筛选。' : ''}`
+  notice.value = `已创建“${result.knowledgeBase.name}”。刷新页面后将恢复示例数据。${searchQuery.value.trim() ? '当前列表仍按搜索词筛选。' : ''}`
 }
 </script>
 

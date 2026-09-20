@@ -14,7 +14,7 @@ const route = useRoute()
         <span class="workspace-badge">本地学习版</span>
       </header>
       <RouterView v-slot="{ Component }">
-        <!-- 保留知识库页面的内存状态，切换导航不会丢失刚创建的记录。 -->
+        <!-- 保留搜索词和表单等页面状态；知识库业务数据由 Pinia 共享管理。 -->
         <KeepAlive include="KnowledgeBaseView">
           <component :is="Component" />
         </KeepAlive>
