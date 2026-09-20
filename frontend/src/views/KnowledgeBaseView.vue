@@ -1,10 +1,24 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import KnowledgeBaseCard from '../components/KnowledgeBaseCard.vue'
 import { knowledgeBases as initialKnowledgeBases } from '../data/knowledgeBases.js'
 
 // 将初始数据复制到响应式列表，新增操作不会修改原始示例数组。
 const knowledgeBases = ref(initialKnowledgeBases.map(item => ({ ...item })))
+const searchQuery = ref('')
+
+// 计算结果用于展示，完整列表仍保存在 knowledgeBases 中。
+const filteredKnowledgeBases = computed(() => {
+  const keyword = searchQuery.value.trim().toLowerCase()
+  if (!keyword) return knowledgeBases.value
+
+  return knowledgeBases.value.filter(item =>
+    [item.name, item.description, item.category].some(text =>
+      text.toLowerCase().includes(keyword),
+    ),
+  )
+})
+
 const createDialog = ref(null)
 const name = ref('')
 const description = ref('')
@@ -54,7 +68,7 @@ function createKnowledgeBase() {
     category: '自建知识库',
   })
   createDialog.value.close()
-  notice.value = `已创建“${trimmedName}”。刷新页面后将恢复示例数据。`
+  notice.value = `已创建“${trimmedName}”。刷新页面后将恢复示例数据。${searchQuery.value.trim() ? '当前列表仍按搜索词筛选。' : ''}`
 }
 </script>
 
@@ -72,17 +86,30 @@ function createKnowledgeBase() {
       </div>
     </div>
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
+    <div class="search-panel" role="search" aria-label="搜索知识库">
+      <label for="knowledge-search">搜索知识库</label>
+      <div class="search-controls">
+        <input id="knowledge-search" v-model="searchQuery" type="search"
+          placeholder="输入名称、描述或分类" aria-describedby="search-summary" />
+        <button type="button" class="secondary-button" :disabled="!searchQuery" @click="searchQuery = ''">清空</button>
+      </div>
+      <p id="search-summary" role="status">显示 {{ filteredKnowledgeBases.length }} / {{ knowledgeBases.length }} 个知识库</p>
+    </div>
     <div class="section-heading">
       <h2>全部知识库 <span>{{ knowledgeBases.length }}</span></h2>
       <span>按业务领域整理</span>
     </div>
-    <div class="knowledge-grid">
+    <div v-if="filteredKnowledgeBases.length" class="knowledge-grid">
       <KnowledgeBaseCard
-        v-for="knowledgeBase in knowledgeBases"
+        v-for="knowledgeBase in filteredKnowledgeBases"
         :key="knowledgeBase.id"
         :knowledge-base="knowledgeBase"
         @view-detail="openKnowledgeBaseDetail"
       />
+    </div>
+    <div v-else class="empty-panel">
+      <h2>没有匹配的知识库</h2>
+      <p>试试其他关键词，或清空搜索查看全部知识库。</p>
     </div>
     <p class="demo-note">当前使用模拟数据；新增内容仅在本次页面打开期间有效，刷新后恢复初始数据。</p>
     <dialog ref="createDialog" class="create-dialog" aria-labelledby="create-title" aria-describedby="create-hint">
