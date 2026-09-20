@@ -26,3 +26,6 @@ target/
 # Codex scratch and deliverables
 /work/
 /outputs/
+
+# Generated local database initialization (contains a password)
+/docker/mysql/init/01-test-database.sql

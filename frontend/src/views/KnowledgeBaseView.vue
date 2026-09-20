@@ -59,7 +59,7 @@ async function createKnowledgeBase() {
     return
   }
   createDialog.value.close()
-  notice.value = `已创建“${result.knowledgeBase.name}”。已保存到后端内存。${searchQuery.value.trim() ? '当前列表仍按搜索词筛选。' : ''}`
+  notice.value = `已创建“${result.knowledgeBase.name}”。已保存到数据库。${searchQuery.value.trim() ? '当前列表仍按搜索词筛选。' : ''}`
 }
 </script>
 
@@ -72,7 +72,7 @@ async function createKnowledgeBase() {
         <p class="page-description">集中整理团队文档，让知识有处可寻。</p>
       </div>
       <div class="heading-actions">
-        <span class="demo-badge">后端内存数据</span>
+        <span class="demo-badge">MySQL 数据</span>
         <button type="button" class="primary-button" :disabled="isLoading || isSaving || !hasLoaded" @click="openCreateDialog">+ 新建知识库</button>
       </div>
     </div>
@@ -111,11 +111,11 @@ async function createKnowledgeBase() {
       <h2>没有匹配的知识库</h2>
       <p>试试其他关键词，或清空搜索查看全部知识库。</p>
     </div>
-    <p class="demo-note">当前记录保存在后端内存中，刷新页面仍可读取；重启后端后恢复初始示例。</p>
+    <p class="demo-note">当前记录保存在 MySQL 中，刷新页面或重启后端后仍可读取。</p>
     <dialog @cancel="isSaving && $event.preventDefault()" ref="createDialog" class="create-dialog" aria-labelledby="create-title" aria-describedby="create-hint">
       <form novalidate @submit.prevent="createKnowledgeBase">
         <h2 id="create-title">新建知识库</h2>
-        <p id="create-hint" class="form-hint">为一类团队资料建立知识库。提交成功后保存到后端内存，重启后端后丢失。</p>
+        <p id="create-hint" class="form-hint">为一类团队资料建立知识库。提交成功后保存到 MySQL，重启后端仍会保留。</p>
         <label for="kb-name">名称 <span>必填</span></label>
         <input id="kb-name" v-model="name" type="text" :disabled="isSaving" maxlength="60" required autofocus
           placeholder="例如：产品设计知识库" :aria-invalid="error ? 'true' : undefined"

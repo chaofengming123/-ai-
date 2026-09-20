@@ -1,0 +1,23 @@
+name: ai-knowledge
+services:
+  mysql:
+    image: mysql:8.4
+    ports:
+      - "127.0.0.1:3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set docker/.env}
+      MYSQL_DATABASE: ai_knowledge
+      MYSQL_USER: ai_knowledge
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set docker/.env}
+      MYSQL_TEST_PASSWORD: ${DB_TEST_PASSWORD:?Set docker/.env}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_PASSWORD mysql -h 127.0.0.1 -u ai_knowledge -D ai_knowledge -e 'SELECT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+volumes:
+  mysql_data:

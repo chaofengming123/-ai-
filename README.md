@@ -2,7 +2,7 @@
 
 从零逐步实现 Vue 3 + Spring Boot 企业知识管理与 RAG 问答系统。
 
-当前已完成第 10 课：Vue 通过 Axios 和 Vite 开发代理读取、创建 Spring Boot 知识库记录。支持搜索、详情、新建与工作台统计。记录在后端内存中，刷新前端不会清空，重启后端后恢复示例；尚未连接数据库、登录或 AI。
+当前第 11 课将知识库迁入 MySQL：Vue → Controller → Service → Mapper → MySQL。支持列表、详情、创建和搜索；数据库数据卷保留记录。尚未实现登录、权限、文档处理或 AI。
 
 ## 启动前端
 
@@ -14,22 +14,27 @@ npm run dev
 
 打开终端显示的本地地址。`npm run build` 检查并生成生产构建。
 
-## 启动后端（第 9 课）
+## 启动数据库和后端（第 11 课）
 
-需要 Java 17，使用工程自带的 Maven Wrapper，无需全局 Maven。
+需要 Docker Desktop 与 Java 17。在项目根目录运行：
 
 ```bash
-cd backend
-./mvnw spring-boot:run
+python3 scripts/init-db-env.py
+docker compose --env-file docker/.env -f docker/compose.yml up -d --wait
+scripts/backend.sh spring-boot:run
 ```
 
-访问 `http://127.0.0.1:8080/api/health`，返回服务状态 JSON。知识库 API 支持 GET `/api/knowledge-bases`、GET `/api/knowledge-bases/{id}` 与 POST `/api/knowledge-bases`，数据暂存后端内存，重启后重置。`./mvnw test` 运行接口测试。首次运行需联网下载构建工具和依赖。前后端需同时运行；开发代理将前端 `/api` 请求转发到本机 8080。
+密码保存在被 Git 忽略的 `docker/.env`，不要删除或提交它。MySQL 监听本机 3307，后端 8080；前端开发代理转发 `/api` 请求到后端。命名卷保存数据库，勿使用 `down -v` 删除数据。
+
+`GET /api/health` 仍是基础服务存活检查，不检查数据库健康。
+
+运行 `scripts/backend.sh test` 使用独立 MySQL 测试库。前端 `npm test` 验证共享状态和错误处理。
 
 ## 目录
 
 - `frontend/`：Vue 前端代码。
-- `backend/`：Spring Boot 后端，已提供健康检查和内存知识库接口。
-- `docker/`：后续容器与部署配置。
+- `backend/`：Spring Boot + MyBatis-Plus + MySQL 后端。
+- `docker/`：MySQL 开发容器与测试库初始化。
 - `docs/`：学习手册、课程与进度记录。
 
 ## 学习资料
@@ -56,7 +61,9 @@ cd backend
 
 - [第 10 课：Vue 通过 Axios 连接真实后端](docs/lesson-10.md)
 
-下一小节接入 MySQL 持久化。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
+- [第 11 课：MySQL 持久化与 Mapper](docs/lesson-11.md)
+
+下一小节补齐知识库修改与删除。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
 
 ## Git 约定
 

@@ -28,7 +28,7 @@ onMounted(() => {
         <p>{{ loadError }}<span v-if="hasLoaded"> 当前显示上次成功加载的数量。</span></p>
         <button type="button" class="secondary-button" :disabled="isLoading" @click="knowledgeBaseStore.loadKnowledgeBases()">重试</button>
       </div>
-      <p>统计本次读取的后端记录。刷新不清空数据，重启后端后恢复示例。</p>
+      <p>统计本次读取的数据库记录。刷新页面或重启后端不会清空。</p>
     </div>
     <div class="empty-panel">
       <h2>建立你的知识库</h2>

@@ -11,7 +11,9 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import static org.junit.jupiter.api.Assertions.*;
 
+@org.springframework.test.context.ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.springframework.test.context.jdbc.Sql(statements = "DELETE FROM knowledge_base WHERE id > 2", executionPhase = org.springframework.test.context.jdbc.Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class KnowledgeBaseApiTests {
     @LocalServerPort private int port;
     private final JsonMapper json = JsonMapper.builder().build();
@@ -67,5 +69,25 @@ class KnowledgeBaseApiTests {
         assertEquals("暂无描述", json.readTree(response.body()).get("description").asText());
         assertEquals(404, request("GET", "/api/knowledge-bases/999999", null).statusCode());
         assertEquals(400, request("GET", "/api/knowledge-bases/abc", null).statusCode());
+    }
+
+    @Test void concurrentDuplicateCreatesOnlyOneRow() throws Exception {
+        String name = "并发-" + UUID.randomUUID();
+        String body = "{\"name\":\"" + name + "\"}";
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        try {
+            java.util.concurrent.Callable<Integer> create = () -> {
+                start.await();
+                return request("POST", "/api/knowledge-bases", body).statusCode();
+            };
+            var first = pool.submit(create);
+            var second = pool.submit(create);
+            start.countDown();
+            var statuses = java.util.List.of(first.get(), second.get()).stream().sorted().toList();
+            assertEquals(java.util.List.of(201, 409), statuses);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 }
