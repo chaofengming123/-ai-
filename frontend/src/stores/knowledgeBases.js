@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { fetchKnowledgeBases, createKnowledgeBase } from '../api/knowledgeBases.js'
+import { fetchKnowledgeBases, createKnowledgeBase, updateKnowledgeBase, deleteKnowledgeBase } from '../api/knowledgeBases.js'
 import { apiErrorMessage } from '../api/http.js'
 
 export const useKnowledgeBaseStore = defineStore('knowledge-bases', () => {
@@ -52,5 +52,33 @@ export const useKnowledgeBaseStore = defineStore('knowledge-bases', () => {
     }
   }
 
-  return { knowledgeBases, knowledgeBaseCount, addKnowledgeBase, isLoading, isSaving, loadError, hasLoaded, loadKnowledgeBases }
+  async function editKnowledgeBase(id, data) {
+    if (isLoading.value || isSaving.value) return { error: '请等待当前操作完成。' }
+    isSaving.value = true
+    try {
+      const record = await updateKnowledgeBase(id, data)
+      knowledgeBases.value = knowledgeBases.value.map(item => item.id === id ? record : item)
+      return { knowledgeBase: record }
+    } catch (error) {
+      return { error: apiErrorMessage(error, { mutating: true }) }
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  async function removeKnowledgeBase(id) {
+    if (isLoading.value || isSaving.value) return { error: '请等待当前操作完成。' }
+    isSaving.value = true
+    try {
+      await deleteKnowledgeBase(id)
+      knowledgeBases.value = knowledgeBases.value.filter(item => item.id !== id)
+      return { success: true }
+    } catch (error) {
+      return { error: apiErrorMessage(error, { mutating: true }) }
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  return { knowledgeBases, knowledgeBaseCount, addKnowledgeBase, editKnowledgeBase, removeKnowledgeBase, isLoading, isSaving, loadError, hasLoaded, loadKnowledgeBases }
 })

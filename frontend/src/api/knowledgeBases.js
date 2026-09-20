@@ -10,3 +10,12 @@ export async function createKnowledgeBase(data) {
   const response = await http.post('/knowledge-bases', data)
   return response.data
 }
+
+export async function updateKnowledgeBase(id, data) {
+  const response = await http.put(`/knowledge-bases/${id}`, data)
+  return response.data
+}
+
+export async function deleteKnowledgeBase(id) {
+  await http.delete(`/knowledge-bases/${id}`)
+}

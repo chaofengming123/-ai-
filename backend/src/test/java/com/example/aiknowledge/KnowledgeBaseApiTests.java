@@ -90,4 +90,34 @@ class KnowledgeBaseApiTests {
             pool.shutdownNow();
         }
     }
+
+    @Test void updatesAndDeletesWithoutChangingManagedFields() throws Exception {
+        var created = request("POST", "/api/knowledge-bases", "{\"name\":\"crud-" + UUID.randomUUID() + "\"}");
+        String location = created.headers().firstValue("Location").orElseThrow();
+        var original = json.readTree(created.body());
+        String body = "{\"name\":\"  edited-" + UUID.randomUUID() + "  \",\"description\":\"  新说明  \"}";
+        var updated = request("PUT", location, body);
+        assertEquals(200, updated.statusCode());
+        var record = json.readTree(updated.body());
+        assertEquals(original.get("id"), record.get("id"));
+        assertEquals(original.get("documentCount"), record.get("documentCount"));
+        assertEquals(original.get("category"), record.get("category"));
+        assertEquals("新说明", record.get("description").asText());
+        assertEquals(record, json.readTree(request("GET", location, null).body()));
+        assertEquals(200, request("PUT", location, body).statusCode());
+        for (String invalid : new String[]{"{}", "null", "bad-json",
+                "{\"name\":\"   \"}", "{\"name\":\"" + "x".repeat(61) + "\"}",
+                "{\"name\":\"ok\",\"description\":\"" + "x".repeat(301) + "\"}"}) {
+            assertEquals(400, request("PUT", location, invalid).statusCode());
+        }
+        assertEquals(409, request("PUT", location, "{\"name\":\"公司制度知识库\"}").statusCode());
+        assertEquals(record, json.readTree(request("GET", location, null).body()));
+        var deleted = request("DELETE", location, null);
+        assertEquals(204, deleted.statusCode());
+        assertEquals("", deleted.body());
+        assertEquals(404, request("GET", location, null).statusCode());
+        assertEquals(404, request("DELETE", location, null).statusCode());
+        assertEquals(404, request("PUT", location, body).statusCode());
+        assertEquals(400, request("DELETE", "/api/knowledge-bases/abc", null).statusCode());
+    }
 }

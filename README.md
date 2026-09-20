@@ -63,7 +63,9 @@ scripts/backend.sh spring-boot:run
 
 - [第 11 课：MySQL 持久化与 Mapper](docs/lesson-11.md)
 
-下一小节补齐知识库修改与删除。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
+- [第 12 课：修改与删除，完成知识库 CRUD](docs/lesson-12.md)
+
+下一小节开始登录基础。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
 
 ## Git 约定
 

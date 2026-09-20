@@ -25,6 +25,10 @@ const filteredKnowledgeBases = computed(() => {
 })
 
 const createDialog = ref(null)
+const editingId = ref(null)
+const deleteDialog = ref(null)
+const deleteTarget = ref(null)
+const deleteError = ref('')
 const name = ref('')
 const description = ref('')
 const error = ref('')
@@ -41,6 +45,7 @@ function openKnowledgeBaseDetail(id) {
 }
 
 function openCreateDialog() {
+  editingId.value = null
   name.value = ''
   description.value = ''
   error.value = ''
@@ -48,18 +53,51 @@ function openCreateDialog() {
   createDialog.value.showModal()
 }
 
-async function createKnowledgeBase() {
+function openEditDialog(id) {
+  const record = knowledgeBases.value.find(item => item.id === id)
+  if (!record) return
+  editingId.value = id
+  // 复制字段到表单，取消时不会修改列表中的原始记录。
+  name.value = record.name
+  description.value = record.description
   error.value = ''
-  const result = await knowledgeBaseStore.addKnowledgeBase({
-    name: name.value,
-    description: description.value,
-  })
+  notice.value = ''
+  createDialog.value.showModal()
+}
+
+async function saveKnowledgeBase() {
+  error.value = ''
+  const data = { name: name.value, description: description.value }
+  const result = editingId.value === null
+    ? await knowledgeBaseStore.addKnowledgeBase(data)
+    : await knowledgeBaseStore.editKnowledgeBase(editingId.value, data)
   if (result.error) {
     error.value = result.error
     return
   }
   createDialog.value.close()
-  notice.value = `已创建“${result.knowledgeBase.name}”。已保存到数据库。${searchQuery.value.trim() ? '当前列表仍按搜索词筛选。' : ''}`
+  notice.value = `已${editingId.value === null ? '创建' : '修改'}“${result.knowledgeBase.name}”。已保存到数据库。${searchQuery.value.trim() ? '当前列表仍按搜索词筛选。' : ''}`
+}
+
+function openDeleteDialog(id) {
+  const record = knowledgeBases.value.find(item => item.id === id)
+  if (!record) return
+  deleteTarget.value = { id: record.id, name: record.name }
+  deleteError.value = ''
+  notice.value = ''
+  deleteDialog.value.showModal()
+}
+
+async function confirmDelete() {
+  if (!deleteTarget.value) return
+  deleteError.value = ''
+  const result = await knowledgeBaseStore.removeKnowledgeBase(deleteTarget.value.id)
+  if (result.error) {
+    deleteError.value = result.error
+    return
+  }
+  deleteDialog.value.close()
+  notice.value = `已删除“${deleteTarget.value.name}”。`
 }
 </script>
 
@@ -104,6 +142,9 @@ async function createKnowledgeBase() {
         v-for="knowledgeBase in filteredKnowledgeBases"
         :key="knowledgeBase.id"
         :knowledge-base="knowledgeBase"
+        :busy="isLoading || isSaving"
+        @edit="openEditDialog"
+        @delete="openDeleteDialog"
         @view-detail="openKnowledgeBaseDetail"
       />
     </div>
@@ -113,8 +154,8 @@ async function createKnowledgeBase() {
     </div>
     <p class="demo-note">当前记录保存在 MySQL 中，刷新页面或重启后端后仍可读取。</p>
     <dialog @cancel="isSaving && $event.preventDefault()" ref="createDialog" class="create-dialog" aria-labelledby="create-title" aria-describedby="create-hint">
-      <form novalidate @submit.prevent="createKnowledgeBase">
-        <h2 id="create-title">新建知识库</h2>
+      <form novalidate @submit.prevent="saveKnowledgeBase">
+        <h2 id="create-title">{{ editingId === null ? '新建知识库' : '编辑知识库' }}</h2>
         <p id="create-hint" class="form-hint">为一类团队资料建立知识库。提交成功后保存到 MySQL，重启后端仍会保留。</p>
         <label for="kb-name">名称 <span>必填</span></label>
         <input id="kb-name" v-model="name" type="text" :disabled="isSaving" maxlength="60" required autofocus
@@ -126,7 +167,20 @@ async function createKnowledgeBase() {
         <p v-if="error" id="create-error" class="form-error" role="alert">{{ error }}</p>
         <div class="dialog-actions">
           <button type="button" class="secondary-button" :disabled="isSaving" @click="createDialog.close()">取消</button>
-          <button type="submit" class="primary-button" :disabled="isSaving">{{ isSaving ? '正在提交…' : '创建' }}</button>
+          <button type="submit" class="primary-button" :disabled="isSaving">{{ isSaving ? '正在提交…' : editingId === null ? '创建' : '保存修改' }}</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog ref="deleteDialog" class="create-dialog" aria-labelledby="delete-title"
+      @cancel="isSaving && $event.preventDefault()">
+      <form @submit.prevent="confirmDelete">
+        <h2 id="delete-title">删除知识库</h2>
+        <p class="delete-warning">确定删除“{{ deleteTarget?.name }}”？这条知识库记录将从数据库中删除，无法在页面中恢复。</p>
+        <p class="form-hint">当前尚未接入真实文档，本操作只删除知识库记录。</p>
+        <p v-if="deleteError" class="form-error" role="alert">{{ deleteError }}</p>
+        <div class="dialog-actions">
+          <button type="button" class="secondary-button" autofocus :disabled="isSaving" @click="deleteDialog.close()">取消</button>
+          <button type="submit" class="danger-button" :disabled="isSaving">{{ isSaving ? '正在删除…' : '确认删除' }}</button>
         </div>
       </form>
     </dialog>

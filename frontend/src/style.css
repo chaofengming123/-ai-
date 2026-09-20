@@ -131,3 +131,10 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
 .load-error { border: 1px solid #e4c4bf; background: #fff5f3; border-radius: 6px; padding: 16px; margin-bottom: 20px; }
 .load-error p { color: #913b30; font-size: 13px; line-height: 1.8; margin: 0 0 10px; }
 .primary-button:disabled, .secondary-button:disabled { opacity: .5; cursor: not-allowed; }
+
+/* 删除使用独立颜色，并保留明确文字，不能只依赖颜色区分操作。 */
+.card-actions { display: flex; gap: 10px; margin-top: 16px; }
+.danger-button { border: 1px solid #b84242; background: #fff5f5; color: #9c2929; border-radius: 8px; padding: 10px 16px; font: inherit; cursor: pointer; }
+.danger-button:hover:not(:disabled) { background: #ffe5e5; }
+.danger-button:disabled { opacity: .5; cursor: not-allowed; }
+.delete-warning { line-height: 1.7; overflow-wrap: anywhere; }

@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import com.example.aiknowledge.dto.CreateKnowledgeBaseRequest;
+import com.example.aiknowledge.dto.SaveKnowledgeBaseRequest;
 import com.example.aiknowledge.model.KnowledgeBase;
 import com.example.aiknowledge.service.KnowledgeBaseService;
 
@@ -29,8 +29,19 @@ public class KnowledgeBaseController {
     }
 
     @PostMapping
-    public ResponseEntity<KnowledgeBase> create(@RequestBody CreateKnowledgeBaseRequest request) {
+    public ResponseEntity<KnowledgeBase> create(@RequestBody SaveKnowledgeBaseRequest request) {
         KnowledgeBase created = service.create(request.name(), request.description());
         return ResponseEntity.created(URI.create("/api/knowledge-bases/" + created.id())).body(created);
+    }
+
+    @PutMapping("/{id}")
+    public KnowledgeBase update(@PathVariable long id, @RequestBody SaveKnowledgeBaseRequest request) {
+        return service.update(id, request.name(), request.description());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable long id) {
+        service.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }

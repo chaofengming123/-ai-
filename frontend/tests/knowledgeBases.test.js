@@ -64,3 +64,47 @@ test('shared store handles pending creation, server errors and recovery', async 
     http.defaults.adapter = original
   }
 })
+
+test('edits and deletes update state only after success and block concurrent mutations', async () => {
+  const original = http.defaults.adapter
+  try {
+    setActivePinia(createPinia())
+    const store = useKnowledgeBaseStore()
+    const record = { id: 42, name: '原名', description: '说明', category: '自建知识库', documentCount: 0 }
+    const respond = (config, data) => ({ data, status: 200, headers: {}, config })
+    http.defaults.adapter = async config => respond(config, [record])
+    await store.loadKnowledgeBases()
+    let finish
+    http.defaults.adapter = config => {
+      assert.equal(config.method, 'put')
+      assert.equal(config.url, '/knowledge-bases/42')
+      return new Promise(resolve => { finish = () => resolve(respond(config, { ...record, name: '新名' })) })
+    }
+    const editing = store.editKnowledgeBase(42, { name: '新名' })
+    assert.equal(store.knowledgeBases[0].name, '原名')
+    assert.ok((await store.removeKnowledgeBase(42)).error)
+    finish()
+    await editing
+    assert.equal(store.knowledgeBases[0].name, '新名')
+    http.defaults.adapter = async () => { throw { response: { status: 409, data: { message: '重名' } } } }
+    assert.equal((await store.editKnowledgeBase(42, { name: '冲突' })).error, '重名')
+    assert.equal(store.knowledgeBases[0].name, '新名')
+    http.defaults.adapter = async () => { throw new Error('offline') }
+    assert.match((await store.removeKnowledgeBase(42)).error, /未能确认操作结果/)
+    assert.equal(store.knowledgeBaseCount, 1)
+    assert.equal(store.isSaving, false)
+    http.defaults.adapter = config => {
+      assert.equal(config.method, 'delete')
+      return new Promise(resolve => { finish = () => resolve({ ...respond(config, ''), status: 204 }) })
+    }
+    const deleting = store.removeKnowledgeBase(42)
+    assert.equal(store.knowledgeBaseCount, 1)
+    assert.ok((await store.editKnowledgeBase(42, { name: '并发修改' })).error)
+    finish()
+    assert.equal((await deleting).success, true)
+    assert.equal(store.knowledgeBaseCount, 0)
+    assert.equal(store.isSaving, false)
+  } finally {
+    http.defaults.adapter = original
+  }
+})

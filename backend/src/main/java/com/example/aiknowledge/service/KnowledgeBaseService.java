@@ -35,7 +35,7 @@ public class KnowledgeBaseService {
                 entity.getDocumentCount(), entity.getCategory());
     }
 
-    public KnowledgeBase create(String name, String description) {
+    private void setEditableFields(KnowledgeBaseEntity entity, String name, String description) {
         String normalizedName = name == null ? "" : name.strip();
         String normalizedDescription = description == null ? "" : description.strip();
         if (normalizedName.isEmpty()) {
@@ -44,9 +44,13 @@ public class KnowledgeBaseService {
         if (normalizedName.length() > 60 || normalizedDescription.length() > 300) {
             throw new KnowledgeBaseException(INVALID_INPUT, "名称最多 60 个字符，描述最多 300 个字符。");
         }
-        KnowledgeBaseEntity entity = new KnowledgeBaseEntity();
         entity.setName(normalizedName);
         entity.setDescription(normalizedDescription.isEmpty() ? "暂无描述" : normalizedDescription);
+    }
+
+    public KnowledgeBase create(String name, String description) {
+        KnowledgeBaseEntity entity = new KnowledgeBaseEntity();
+        setEditableFields(entity, name, description);
         entity.setDocumentCount(0);
         entity.setCategory("自建知识库");
         try {
@@ -55,5 +59,24 @@ public class KnowledgeBaseService {
             throw new KnowledgeBaseException(CONFLICT, "这个名称已经存在，请换一个名称。");
         }
         return toResponse(entity);
+    }
+
+    @org.springframework.transaction.annotation.Transactional
+    public KnowledgeBase update(long id, String name, String description) {
+        KnowledgeBaseEntity entity = mapper.findForUpdate(id);
+        if (entity == null) throw new KnowledgeBaseException(NOT_FOUND, "知识库不存在。");
+        setEditableFields(entity, name, description);
+        try {
+            mapper.updateById(entity);
+        } catch (DuplicateKeyException error) {
+            throw new KnowledgeBaseException(CONFLICT, "这个名称已经存在，请换一个名称。");
+        }
+        return toResponse(entity);
+    }
+
+    public void delete(long id) {
+        if (mapper.deleteById(id) == 0) {
+            throw new KnowledgeBaseException(NOT_FOUND, "知识库不存在，可能已被删除。");
+        }
     }
 }
