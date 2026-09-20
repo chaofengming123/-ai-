@@ -6,7 +6,7 @@ import { useKnowledgeBaseStore } from '../stores/knowledgeBases.js'
 
 // 两个页面使用同一份 store，搜索词与弹窗仍由当前页面管理。
 const knowledgeBaseStore = useKnowledgeBaseStore()
-const { knowledgeBases, isLoading, loadError, hasLoaded } = storeToRefs(knowledgeBaseStore)
+const { knowledgeBases, isLoading, isSaving, loadError, hasLoaded } = storeToRefs(knowledgeBaseStore)
 const searchQuery = ref('')
 onMounted(() => {
   if (!hasLoaded.value) knowledgeBaseStore.loadKnowledgeBases()
@@ -48,8 +48,9 @@ function openCreateDialog() {
   createDialog.value.showModal()
 }
 
-function createKnowledgeBase() {
-  const result = knowledgeBaseStore.addKnowledgeBase({
+async function createKnowledgeBase() {
+  error.value = ''
+  const result = await knowledgeBaseStore.addKnowledgeBase({
     name: name.value,
     description: description.value,
   })
@@ -58,7 +59,7 @@ function createKnowledgeBase() {
     return
   }
   createDialog.value.close()
-  notice.value = `已创建“${result.knowledgeBase.name}”。刷新页面后将恢复示例数据。${searchQuery.value.trim() ? '当前列表仍按搜索词筛选。' : ''}`
+  notice.value = `已创建“${result.knowledgeBase.name}”。已保存到后端内存。${searchQuery.value.trim() ? '当前列表仍按搜索词筛选。' : ''}`
 }
 </script>
 
@@ -71,15 +72,14 @@ function createKnowledgeBase() {
         <p class="page-description">集中整理团队文档，让知识有处可寻。</p>
       </div>
       <div class="heading-actions">
-        <span class="demo-badge">演示数据</span>
-        <button type="button" class="primary-button" :disabled="isLoading || !hasLoaded" @click="openCreateDialog">+ 新建知识库</button>
+        <span class="demo-badge">后端内存数据</span>
+        <button type="button" class="primary-button" :disabled="isLoading || isSaving || !hasLoaded" @click="openCreateDialog">+ 新建知识库</button>
       </div>
     </div>
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
     <div class="load-controls">
-      <span>异步加载练习 · 模拟等待 1 秒</span>
-      <button type="button" class="secondary-button" :disabled="isLoading" @click="knowledgeBaseStore.loadKnowledgeBases()">重新加载</button>
-      <button type="button" class="secondary-button" :disabled="isLoading" @click="knowledgeBaseStore.loadKnowledgeBases({ simulateFailure: true })">模拟加载失败</button>
+      <span>数据来自本地后端服务</span>
+      <button type="button" class="secondary-button" :disabled="isLoading || isSaving" @click="knowledgeBaseStore.loadKnowledgeBases()">重新加载</button>
     </div>
     <p v-if="isLoading" class="loading-notice" role="status">正在加载知识库…<span v-if="hasLoaded"> 下方保留上次加载的数据。</span></p>
     <div v-if="loadError" class="load-error" role="alert">
@@ -111,22 +111,22 @@ function createKnowledgeBase() {
       <h2>没有匹配的知识库</h2>
       <p>试试其他关键词，或清空搜索查看全部知识库。</p>
     </div>
-    <p class="demo-note">当前使用模拟数据；新增内容仅在本次页面打开期间有效，刷新后恢复初始数据。</p>
-    <dialog ref="createDialog" class="create-dialog" aria-labelledby="create-title" aria-describedby="create-hint">
+    <p class="demo-note">当前记录保存在后端内存中，刷新页面仍可读取；重启后端后恢复初始示例。</p>
+    <dialog @cancel="isSaving && $event.preventDefault()" ref="createDialog" class="create-dialog" aria-labelledby="create-title" aria-describedby="create-hint">
       <form novalidate @submit.prevent="createKnowledgeBase">
         <h2 id="create-title">新建知识库</h2>
-        <p id="create-hint" class="form-hint">为一类团队资料建立知识库。刷新页面后，新增内容不会保留。</p>
+        <p id="create-hint" class="form-hint">为一类团队资料建立知识库。提交成功后保存到后端内存，重启后端后丢失。</p>
         <label for="kb-name">名称 <span>必填</span></label>
-        <input id="kb-name" v-model="name" type="text" maxlength="60" required autofocus
+        <input id="kb-name" v-model="name" type="text" :disabled="isSaving" maxlength="60" required autofocus
           placeholder="例如：产品设计知识库" :aria-invalid="error ? 'true' : undefined"
           :aria-describedby="error ? 'create-error' : undefined" />
         <label for="kb-description">描述 <span>选填</span></label>
-        <textarea id="kb-description" v-model="description" rows="3" maxlength="300"
+        <textarea id="kb-description" v-model="description" :disabled="isSaving" rows="3" maxlength="300"
           placeholder="简单说明这个知识库收录什么资料" />
         <p v-if="error" id="create-error" class="form-error" role="alert">{{ error }}</p>
         <div class="dialog-actions">
-          <button type="button" class="secondary-button" @click="createDialog.close()">取消</button>
-          <button type="submit" class="primary-button">创建</button>
+          <button type="button" class="secondary-button" :disabled="isSaving" @click="createDialog.close()">取消</button>
+          <button type="submit" class="primary-button" :disabled="isSaving">{{ isSaving ? '正在提交…' : '创建' }}</button>
         </div>
       </form>
     </dialog>
@@ -138,7 +138,7 @@ function createKnowledgeBase() {
         <dt>分类</dt><dd>{{ selectedKnowledgeBase.category }}</dd>
         <dt>文档数量</dt><dd>{{ selectedKnowledgeBase.documentCount }} 份文档</dd>
       </dl>
-      <p class="form-hint">当前仅展示模拟数据，尚未接入真实文档。</p>
+      <p class="form-hint">展示本次列表读取的后端记录，尚未接入真实文档。</p>
       <div class="dialog-actions">
         <button type="button" class="primary-button" autofocus @click="detailDialog.close()">关闭</button>
       </div>

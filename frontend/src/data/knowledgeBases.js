@@ -1,4 +1,4 @@
-// Mock Data：先用本地数组，后续课程再替换为后端 API 数据。
+// 第 1～7 课保留的 Mock Data 示例；当前应用已读取后端 API，不再导入此文件。
 export const knowledgeBases = [
   {
     id: 1,

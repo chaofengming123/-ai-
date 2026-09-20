@@ -28,11 +28,11 @@ onMounted(() => {
         <p>{{ loadError }}<span v-if="hasLoaded"> 当前显示上次成功加载的数量。</span></p>
         <button type="button" class="secondary-button" :disabled="isLoading" @click="knowledgeBaseStore.loadKnowledgeBases()">重试</button>
       </div>
-      <p>包含示例与本次新建的知识库。刷新后恢复示例数据。</p>
+      <p>统计本次读取的后端记录。刷新不清空数据，重启后端后恢复示例。</p>
     </div>
     <div class="empty-panel">
       <h2>建立你的知识库</h2>
-      <p>按业务领域整理资料。当前可以查看示例知识库，或创建一个临时知识库。</p>
+      <p>按业务领域整理资料。当前可以查看示例知识库，或创建一个知识库。</p>
       <RouterLink to="/knowledge-bases" class="primary-button page-link">前往知识库</RouterLink>
     </div>
   </section>

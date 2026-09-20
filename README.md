@@ -2,7 +2,7 @@
 
 从零逐步实现 Vue 3 + Spring Boot 企业知识管理与 RAG 问答系统。
 
-前端已完成第 7 课：Vue 3 + JavaScript + Vite 前端，包含四个页面路由、Mock Data 知识库列表、新建表单和只读详情，卡片已拆为独立组件，支持按名称、描述和分类即时搜索。Pinia 共享知识库数据，工作台显示同步更新的总数。支持模拟异步加载、失败重试和旧数据保留。切换导航会保留知识库页面状态；文档管理和 AI 问答为说明页。新增数据仅在内存中保存，刷新后恢复初始数据。尚未接入后端或数据库。
+当前已完成第 10 课：Vue 通过 Axios 和 Vite 开发代理读取、创建 Spring Boot 知识库记录。支持搜索、详情、新建与工作台统计。记录在后端内存中，刷新前端不会清空，重启后端后恢复示例；尚未连接数据库、登录或 AI。
 
 ## 启动前端
 
@@ -23,7 +23,7 @@ cd backend
 ./mvnw spring-boot:run
 ```
 
-访问 `http://127.0.0.1:8080/api/health`，返回服务状态 JSON。知识库 API 支持 GET `/api/knowledge-bases`、GET `/api/knowledge-bases/{id}` 与 POST `/api/knowledge-bases`，数据暂存后端内存，重启后重置。`./mvnw test` 运行接口测试。首次运行需联网下载构建工具和依赖。当前前端仍使用模拟数据，尚未调用后端。
+访问 `http://127.0.0.1:8080/api/health`，返回服务状态 JSON。知识库 API 支持 GET `/api/knowledge-bases`、GET `/api/knowledge-bases/{id}` 与 POST `/api/knowledge-bases`，数据暂存后端内存，重启后重置。`./mvnw test` 运行接口测试。首次运行需联网下载构建工具和依赖。前后端需同时运行；开发代理将前端 `/api` 请求转发到本机 8080。
 
 ## 目录
 
@@ -54,7 +54,9 @@ cd backend
 
 - [第 9 课：知识库 API 与 Controller / Service 分工](docs/lesson-09.md)
 
-下一小节连接前端与真实接口，之后加入数据库。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
+- [第 10 课：Vue 通过 Axios 连接真实后端](docs/lesson-10.md)
+
+下一小节接入 MySQL 持久化。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
 
 ## Git 约定
 
