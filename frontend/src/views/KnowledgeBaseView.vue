@@ -1,13 +1,16 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import KnowledgeBaseCard from '../components/KnowledgeBaseCard.vue'
 import { storeToRefs } from 'pinia'
 import { useKnowledgeBaseStore } from '../stores/knowledgeBases.js'
 
 // 两个页面使用同一份 store，搜索词与弹窗仍由当前页面管理。
 const knowledgeBaseStore = useKnowledgeBaseStore()
-const { knowledgeBases } = storeToRefs(knowledgeBaseStore)
+const { knowledgeBases, isLoading, loadError, hasLoaded } = storeToRefs(knowledgeBaseStore)
 const searchQuery = ref('')
+onMounted(() => {
+  if (!hasLoaded.value) knowledgeBaseStore.loadKnowledgeBases()
+})
 
 // 计算结果用于展示，完整列表仍保存在 knowledgeBases 中。
 const filteredKnowledgeBases = computed(() => {
@@ -69,11 +72,21 @@ function createKnowledgeBase() {
       </div>
       <div class="heading-actions">
         <span class="demo-badge">演示数据</span>
-        <button type="button" class="primary-button" @click="openCreateDialog">+ 新建知识库</button>
+        <button type="button" class="primary-button" :disabled="isLoading || !hasLoaded" @click="openCreateDialog">+ 新建知识库</button>
       </div>
     </div>
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
-    <div class="search-panel" role="search" aria-label="搜索知识库">
+    <div class="load-controls">
+      <span>异步加载练习 · 模拟等待 1 秒</span>
+      <button type="button" class="secondary-button" :disabled="isLoading" @click="knowledgeBaseStore.loadKnowledgeBases()">重新加载</button>
+      <button type="button" class="secondary-button" :disabled="isLoading" @click="knowledgeBaseStore.loadKnowledgeBases({ simulateFailure: true })">模拟加载失败</button>
+    </div>
+    <p v-if="isLoading" class="loading-notice" role="status">正在加载知识库…<span v-if="hasLoaded"> 下方保留上次加载的数据。</span></p>
+    <div v-if="loadError" class="load-error" role="alert">
+      <p>{{ loadError }}<span v-if="hasLoaded"> 已保留上次加载的数据。</span></p>
+      <button type="button" class="secondary-button" @click="knowledgeBaseStore.loadKnowledgeBases()">重试</button>
+    </div>
+    <div v-if="hasLoaded" class="search-panel" role="search" aria-label="搜索知识库">
       <label for="knowledge-search">搜索知识库</label>
       <div class="search-controls">
         <input id="knowledge-search" v-model="searchQuery" type="search"
@@ -82,7 +95,7 @@ function createKnowledgeBase() {
       </div>
       <p id="search-summary" role="status">显示 {{ filteredKnowledgeBases.length }} / {{ knowledgeBases.length }} 个知识库</p>
     </div>
-    <div class="section-heading">
+    <div v-if="hasLoaded" class="section-heading">
       <h2>全部知识库 <span>{{ knowledgeBases.length }}</span></h2>
       <span>按业务领域整理</span>
     </div>
@@ -94,7 +107,7 @@ function createKnowledgeBase() {
         @view-detail="openKnowledgeBaseDetail"
       />
     </div>
-    <div v-else class="empty-panel">
+    <div v-else-if="hasLoaded" class="empty-panel">
       <h2>没有匹配的知识库</h2>
       <p>试试其他关键词，或清空搜索查看全部知识库。</p>
     </div>

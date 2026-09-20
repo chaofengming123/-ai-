@@ -124,3 +124,10 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
 .overview-stat > span { color: #63736b; font-size: 14px; }
 .overview-stat strong { display: block; font-size: 40px; margin: 12px 0; font-weight: 600; }
 .overview-stat p { color: #63736b; font-size: 13px; line-height: 1.8; margin: 0; }
+
+.load-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 22px; }
+.load-controls > span { width: 100%; font-size: 12px; color: #63736b; }
+.loading-notice { background: #eaf1ed; padding: 14px; border-radius: 6px; font-size: 13px; line-height: 1.8; }
+.load-error { border: 1px solid #e4c4bf; background: #fff5f3; border-radius: 6px; padding: 16px; margin-bottom: 20px; }
+.load-error p { color: #913b30; font-size: 13px; line-height: 1.8; margin: 0 0 10px; }
+.primary-button:disabled, .secondary-button:disabled { opacity: .5; cursor: not-allowed; }

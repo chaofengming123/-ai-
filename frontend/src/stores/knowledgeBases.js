@@ -1,12 +1,33 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { knowledgeBases as initialKnowledgeBases } from '../data/knowledgeBases.js'
+import { fetchKnowledgeBases, insertMockKnowledgeBase } from '../api/knowledgeBases.js'
 
 export const useKnowledgeBaseStore = defineStore('knowledge-bases', () => {
-  const knowledgeBases = ref(initialKnowledgeBases.map(item => ({ ...item })))
+  const knowledgeBases = ref([])
+  const isLoading = ref(false)
+  const loadError = ref('')
+  const hasLoaded = ref(false)
+
+  async function loadKnowledgeBases(options = {}) {
+    if (isLoading.value) return
+    isLoading.value = true
+    loadError.value = ''
+    try {
+      const records = await fetchKnowledgeBases(options)
+      knowledgeBases.value = records
+      hasLoaded.value = true
+    } catch (error) {
+      loadError.value = error instanceof Error ? error.message : '加载失败，请重试。'
+    } finally {
+      isLoading.value = false
+    }
+  }
   const knowledgeBaseCount = computed(() => knowledgeBases.value.length)
 
   function addKnowledgeBase({ name, description }) {
+    if (isLoading.value || !hasLoaded.value) {
+      return { error: '请等待知识库加载完成后再创建。' }
+    }
     const trimmedName = name.trim()
     const trimmedDescription = description.trim()
 
@@ -27,9 +48,10 @@ export const useKnowledgeBaseStore = defineStore('knowledge-bases', () => {
       documentCount: 0,
       category: '自建知识库',
     }
+    insertMockKnowledgeBase(knowledgeBase)
     knowledgeBases.value.push(knowledgeBase)
     return { knowledgeBase }
   }
 
-  return { knowledgeBases, knowledgeBaseCount, addKnowledgeBase }
+  return { knowledgeBases, knowledgeBaseCount, addKnowledgeBase, isLoading, loadError, hasLoaded, loadKnowledgeBases }
 })
