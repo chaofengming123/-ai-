@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { useKnowledgeBaseStore } from './knowledgeBases.js'
 import { loginUser, fetchCurrentUser } from '../api/auth.js'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -8,11 +9,15 @@ export const useAuthStore = defineStore('auth', () => {
   const isBusy = ref(false)
   const notice = ref('')
   const isLoggedIn = computed(() => Boolean(user.value && token.value))
+  const sessionVersion = ref(0)
+  const accessToken = computed(() => token.value)
   let generation = 0
   let expiryTimer
 
   function logout(message = '已退出登录。') {
     generation++
+    sessionVersion.value++
+    useKnowledgeBaseStore().reset()
     clearTimeout(expiryTimer)
     token.value = ''
     user.value = null
@@ -29,6 +34,8 @@ export const useAuthStore = defineStore('auth', () => {
       const result = await loginUser(username, password)
       if (generation !== requestGeneration) return { error: '登录操作已取消。' }
       clearTimeout(expiryTimer)
+      sessionVersion.value++
+      useKnowledgeBaseStore().reset()
       token.value = result.accessToken
       user.value = result.user
       expiryTimer = setTimeout(() => logout('登录已到期，请重新登录。'), result.expiresIn * 1000)
@@ -62,5 +69,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, isLoggedIn, isBusy, notice, login, logout, verifySession }
+  return { accessToken, sessionVersion, user, isLoggedIn, isBusy, notice, login, logout, verifySession }
 })

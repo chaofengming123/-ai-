@@ -9,19 +9,32 @@ export const useKnowledgeBaseStore = defineStore('knowledge-bases', () => {
   const isSaving = ref(false)
   const loadError = ref('')
   const hasLoaded = ref(false)
+  let generation = 0
+
+  function reset() {
+    generation++
+    knowledgeBases.value = []
+    hasLoaded.value = false
+    isLoading.value = false
+    isSaving.value = false
+    loadError.value = ''
+  }
 
   async function loadKnowledgeBases() {
     if (isLoading.value || isSaving.value) return
+    const requestGeneration = generation
     isLoading.value = true
     loadError.value = ''
     try {
       const records = await fetchKnowledgeBases()
+      if (requestGeneration !== generation) return { error: '登录状态已变化，请重新操作。' }
       knowledgeBases.value = records
       hasLoaded.value = true
     } catch (error) {
+      if (requestGeneration !== generation) return { error: '登录状态已变化，请重新操作。' }
       loadError.value = apiErrorMessage(error)
     } finally {
-      isLoading.value = false
+      if (requestGeneration === generation) isLoading.value = false
     }
   }
   const knowledgeBaseCount = computed(() => knowledgeBases.value.length)
@@ -40,45 +53,54 @@ export const useKnowledgeBaseStore = defineStore('knowledge-bases', () => {
     if (trimmedName.length > 60 || trimmedDescription.length > 300) {
       return { error: '名称最多 60 个字符，描述最多 300 个字符。' }
     }
+    const requestGeneration = generation
     isSaving.value = true
     try {
       const knowledgeBase = await createKnowledgeBase({ name: trimmedName, description: trimmedDescription })
+      if (requestGeneration !== generation) return { error: '登录状态已变化，请重新操作。' }
       knowledgeBases.value.push(knowledgeBase)
       return { knowledgeBase }
     } catch (error) {
+      if (requestGeneration !== generation) return { error: '登录状态已变化，请重新操作。' }
       return { error: apiErrorMessage(error, { creating: true }) }
     } finally {
-      isSaving.value = false
+      if (requestGeneration === generation) isSaving.value = false
     }
   }
 
   async function editKnowledgeBase(id, data) {
     if (isLoading.value || isSaving.value) return { error: '请等待当前操作完成。' }
+    const requestGeneration = generation
     isSaving.value = true
     try {
       const record = await updateKnowledgeBase(id, data)
+      if (requestGeneration !== generation) return { error: '登录状态已变化，请重新操作。' }
       knowledgeBases.value = knowledgeBases.value.map(item => item.id === id ? record : item)
       return { knowledgeBase: record }
     } catch (error) {
+      if (requestGeneration !== generation) return { error: '登录状态已变化，请重新操作。' }
       return { error: apiErrorMessage(error, { mutating: true }) }
     } finally {
-      isSaving.value = false
+      if (requestGeneration === generation) isSaving.value = false
     }
   }
 
   async function removeKnowledgeBase(id) {
     if (isLoading.value || isSaving.value) return { error: '请等待当前操作完成。' }
+    const requestGeneration = generation
     isSaving.value = true
     try {
       await deleteKnowledgeBase(id)
+      if (requestGeneration !== generation) return { error: '登录状态已变化，请重新操作。' }
       knowledgeBases.value = knowledgeBases.value.filter(item => item.id !== id)
       return { success: true }
     } catch (error) {
+      if (requestGeneration !== generation) return { error: '登录状态已变化，请重新操作。' }
       return { error: apiErrorMessage(error, { mutating: true }) }
     } finally {
-      isSaving.value = false
+      if (requestGeneration === generation) isSaving.value = false
     }
   }
 
-  return { knowledgeBases, knowledgeBaseCount, addKnowledgeBase, editKnowledgeBase, removeKnowledgeBase, isLoading, isSaving, loadError, hasLoaded, loadKnowledgeBases }
+  return { reset, knowledgeBases, knowledgeBaseCount, addKnowledgeBase, editKnowledgeBase, removeKnowledgeBase, isLoading, isSaving, loadError, hasLoaded, loadKnowledgeBases }
 })

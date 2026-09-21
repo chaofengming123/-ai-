@@ -98,7 +98,9 @@ class LoginApiTests {
     @Test void deletedUserCannotUseOtherwiseValidToken() throws Exception {
         var user = users.register(uniqueName(), "test-only-password");
         String token = signed(Long.toString(user.id()), TokenConfig.ISSUER, Instant.now().plusSeconds(900));
+        assertEquals(200, request("/api/knowledge-bases", null, token).statusCode());
         mapper.deleteById(user.id());
         assertEquals(401, request("/api/auth/me", null, token).statusCode());
+        assertEquals(401, request("/api/knowledge-bases", null, token).statusCode());
     }
 }

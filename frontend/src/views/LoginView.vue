@@ -1,7 +1,10 @@
 <script setup>
 import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
+import { safeDestination } from '../router/authGuard.js'
+const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const username = ref('')
 const password = ref('')
@@ -16,6 +19,7 @@ async function submit() {
   try {
     const result = await auth.login(username.value, password.value)
     if (result.error) error.value = result.error
+    else if (result.success) await router.replace(safeDestination(route.query.redirect))
   } finally {
     password.value = ''
   }
@@ -26,7 +30,7 @@ async function submit() {
   <section class="page" aria-labelledby="login-title">
     <div class="page-heading">
       <div>
-        <p class="eyebrow">账号基础 · 第十四课</p>
+        <p class="eyebrow">登录与访问保护</p>
         <h1 id="login-title">登录</h1>
         <p class="page-description">使用上一课创建的账号，验证你的身份。</p>
       </div>
@@ -54,6 +58,6 @@ async function submit() {
       <RouterLink to="/register">还没有账号？创建账号</RouterLink>
     </form>
     <p v-if="auth.notice" class="success-notice" role="status">{{ auth.notice }}</p>
-    <p class="demo-note">本课验证登录身份。知识库访问权限将在下一课接入，当前仍可直接访问。</p>
+    <p class="demo-note">知识库需要登录后访问。当前所有登录用户共享知识库，尚未区分角色和数据归属。</p>
   </section>
 </template>

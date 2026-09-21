@@ -19,8 +19,8 @@ public class AuthSecurityConfig {
             response.setContentType("application/json;charset=UTF-8");
             response.getWriter().write("{\"message\":\"请登录，或重新登录后再试。\"}");
         };
-        // 本课先保护身份查询接口；知识库权限在下一课接入。
-        http.securityMatcher("/api/auth/**")
+        // 两组接口均检查身份；注册与登录仍允许匿名。
+        http.securityMatcher("/api/auth/**", "/api/knowledge-bases", "/api/knowledge-bases/**")
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth

@@ -1,10 +1,17 @@
 <script setup>
-import { RouterLink, RouterView, useRoute } from 'vue-router'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+import { watch } from 'vue'
 import AppSidebar from './components/AppSidebar.vue'
 
 import { useAuthStore } from './stores/auth.js'
 const auth = useAuthStore()
 const route = useRoute()
+const router = useRouter()
+watch(() => auth.isLoggedIn, loggedIn => {
+  if (!loggedIn && route.meta.requiresAuth) {
+    router.replace({ path: '/login', query: { redirect: route.path } })
+  }
+})
 </script>
 
 <template>
@@ -23,8 +30,8 @@ const route = useRoute()
       </header>
       <RouterView v-slot="{ Component }">
         <!-- 保留搜索词和表单等页面状态；知识库业务数据由 Pinia 共享管理。 -->
-        <KeepAlive include="KnowledgeBaseView">
-          <component :is="Component" />
+        <KeepAlive :key="auth.sessionVersion" include="KnowledgeBaseView">
+          <component v-if="!route.meta.requiresAuth || auth.isLoggedIn" :is="Component" />
         </KeepAlive>
       </RouterView>
     </main>

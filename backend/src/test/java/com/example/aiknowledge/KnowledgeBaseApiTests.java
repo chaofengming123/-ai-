@@ -13,14 +13,28 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @org.springframework.test.context.ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@org.springframework.test.context.jdbc.Sql(statements = "DELETE FROM knowledge_base WHERE id > 2", executionPhase = org.springframework.test.context.jdbc.Sql.ExecutionPhase.AFTER_TEST_METHOD)
+@org.springframework.test.context.jdbc.Sql(statements = {"DELETE FROM knowledge_base WHERE id > 2", "DELETE FROM app_user"}, executionPhase = org.springframework.test.context.jdbc.Sql.ExecutionPhase.AFTER_TEST_METHOD)
 class KnowledgeBaseApiTests {
     @LocalServerPort private int port;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.example.aiknowledge.service.UserService users;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.example.aiknowledge.service.LoginService login;
+    private String token;
+
+    @org.junit.jupiter.api.BeforeEach
+    void authenticate() {
+        String name = "kb_" + UUID.randomUUID().toString().substring(0, 8);
+        users.register(name, "test-only-password");
+        token = login.login(name, "test-only-password").accessToken();
+    }
+
     private final JsonMapper json = JsonMapper.builder().build();
 
     private HttpResponse<String> request(String method, String path, String body) throws Exception {
         var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                 .timeout(Duration.ofSeconds(5)).header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + token)
                 .method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body)).build();
         return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
@@ -119,5 +133,28 @@ class KnowledgeBaseApiTests {
         assertEquals(404, request("DELETE", location, null).statusCode());
         assertEquals(404, request("PUT", location, body).statusCode());
         assertEquals(400, request("DELETE", "/api/knowledge-bases/abc", null).statusCode());
+    }
+
+    @Test void anonymousAndInvalidTokensCannotReadOrWrite() throws Exception {
+        String before = request("GET", "/api/knowledge-bases", null).body();
+        for (String method : new String[]{"GET", "POST", "PUT", "DELETE"}) {
+            String path = method.equals("POST") ? "/api/knowledge-bases" : "/api/knowledge-bases/1";
+            for (String invalidToken : new String[]{"", "not-a-valid-jwt"}) {
+                var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
+                        .header("Content-Type", "application/json")
+                        .method(method, method.equals("POST") || method.equals("PUT")
+                                ? HttpRequest.BodyPublishers.ofString("{\"name\":\"unauthorized-write\"}")
+                                : HttpRequest.BodyPublishers.noBody());
+                if (!invalidToken.isEmpty()) builder.header("Authorization", "Bearer " + invalidToken);
+                var response = HttpClient.newHttpClient().send(builder.build(), HttpResponse.BodyHandlers.ofString());
+                assertEquals(401, response.statusCode());
+                assertTrue(json.readTree(response.body()).get("message").isTextual());
+            }
+        }
+        assertEquals(before, request("GET", "/api/knowledge-bases", null).body());
+        var list = HttpClient.newHttpClient().send(
+                HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/knowledge-bases")).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(401, list.statusCode());
     }
 }

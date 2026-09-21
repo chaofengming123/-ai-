@@ -26,9 +26,17 @@ public class TokenConfig {
     }
 
     @Bean
-    JwtDecoder jwtDecoder(SecretKey key) {
+    JwtDecoder jwtDecoder(SecretKey key, com.example.aiknowledge.mapper.UserMapper users) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(ISSUER));
+        JwtClaimValidator<String> existingUser = new JwtClaimValidator<>("sub", subject -> {
+            try {
+                return subject != null && users.selectById(Long.parseLong(subject)) != null;
+            } catch (NumberFormatException error) {
+                return false;
+            }
+        });
+        decoder.setJwtValidator(new org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(ISSUER), existingUser));
         return decoder;
     }
 }
