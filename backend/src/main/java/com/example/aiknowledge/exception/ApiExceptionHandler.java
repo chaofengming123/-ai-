@@ -21,6 +21,12 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(status).body(new ErrorResponse(error.getMessage()));
     }
 
+    @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleBadCredentials() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ErrorResponse("用户名或密码不正确，或账号已不可用。"));
+    }
+
     @ExceptionHandler(RegistrationException.class)
     public ResponseEntity<ErrorResponse> handleRegistrationError(RegistrationException error) {
         HttpStatus status = error.kind() == RegistrationException.Kind.CONFLICT

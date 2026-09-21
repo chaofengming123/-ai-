@@ -6,6 +6,7 @@ const navigation = [
   { path: '/knowledge-bases', label: '知识库', icon: '▤' },
   { path: '/documents', label: '文档管理', icon: '▧' },
   { path: '/chat', label: 'AI 问答', icon: '✧' },
+  { path: '/login', label: '登录', icon: '○' },
   { path: '/register', label: '创建账号', icon: '＋' },
 ]
 </script>

@@ -144,3 +144,5 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
 .registration-form input { width: 100%; min-width: 0; border: 1px solid #cdd5cf; border-radius: 8px; padding: 12px; font: inherit; }
 .registration-form .form-hint { margin: 0 0 8px; line-height: 1.7; }
 .registration-form .primary-button { justify-self: start; margin-top: 8px; }
+
+.account-controls { display: flex; align-items: center; gap: 12px; overflow-wrap: anywhere; }

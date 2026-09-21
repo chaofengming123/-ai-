@@ -2,6 +2,7 @@
 """Prepare local passwords and MySQL initialization; do not overwrite credentials."""
 from pathlib import Path
 import secrets
+import base64
 import re
 
 root = Path(__file__).resolve().parents[1]
@@ -12,6 +13,11 @@ if not path.exists():
             file.write(f'{key}={secrets.token_hex(24)}\n')
     path.chmod(0o600)
 values = dict(line.split('=', 1) for line in path.read_text().splitlines() if '=' in line and not line.startswith('#'))
+if 'JWT_SECRET' not in values:
+    # 单独的签名密钥，追加时保留已有数据库凭据。
+    with path.open('a', encoding='utf-8') as file:
+        file.write('\nJWT_SECRET=' + base64.b64encode(secrets.token_bytes(32)).decode() + '\n')
+    path.chmod(0o600)
 password = values['DB_TEST_PASSWORD']
 if not re.fullmatch(r'[a-f0-9]{48}', password):
     raise SystemExit('Expected generated hexadecimal test password.')

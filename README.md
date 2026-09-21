@@ -67,7 +67,9 @@ scripts/backend.sh spring-boot:run
 
 - [第 13 课：创建用户与密码哈希](docs/lesson-13.md)
 
-账号创建入口为 /register。下一小节实现登录验证与登录状态。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
+- [第 14 课：登录验证与 JWT 登录状态](docs/lesson-14.md)
+
+账号创建入口为 /register，登录入口为 /login。升级后先运行初始化脚本补充 JWT_SECRET，再启动后端；已有凭据保留。登录状态仅在内存保存，刷新需要重新登录。本课仅保护 /api/auth/me，下一课接入知识库接口访问控制。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
 
 ## Git 约定
 

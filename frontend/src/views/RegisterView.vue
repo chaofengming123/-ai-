@@ -43,7 +43,7 @@ async function submit() {
       </div>
     </div>
     <form class="registration-form" novalidate @submit.prevent="submit" :aria-busy="isSubmitting">
-      <p class="form-hint">本课完成账号创建。登录功能将在下一课接入，创建成功后不会自动登录。</p>
+      <p class="form-hint">本课完成账号创建。创建成功后请前往登录页登录。</p>
       <label for="register-username">用户名</label>
       <input id="register-username" v-model="username" type="text" autocomplete="username"
         spellcheck="false" autocapitalize="none" :disabled="isSubmitting" aria-describedby="username-hint" />
@@ -57,7 +57,7 @@ async function submit() {
         :disabled="isSubmitting" />
       <p v-if="error" class="form-error" role="alert">{{ error }}</p>
       <p v-if="createdUser" class="success-notice" role="status">
-        已创建账号“{{ createdUser.username }}”（编号 {{ createdUser.id }}）。下一课将使用账号登录。
+        已创建账号“{{ createdUser.username }}”（编号 {{ createdUser.id }}）。现在可以前往登录页使用该账号。
       </p>
       <button class="primary-button" type="submit" :disabled="isSubmitting">
         {{ isSubmitting ? '正在创建…' : '创建账号' }}
