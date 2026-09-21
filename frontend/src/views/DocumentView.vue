@@ -2,7 +2,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useKnowledgeBaseStore } from '../stores/knowledgeBases.js'
-import { fetchDocuments, uploadDocument } from '../api/documents.js'
+import { fetchDocuments, uploadDocument, downloadDocument } from '../api/documents.js'
 import { validateDocument, formatFileSize } from '../utils/documents.js'
 
 const auth = useAuthStore()
@@ -18,6 +18,8 @@ const uploading = ref(false)
 const loadError = ref('')
 const uploadError = ref('')
 const notice = ref('')
+const downloadingId = ref(null)
+const downloadError = ref('')
 let active = true
 let requestId = 0
 let controller
@@ -56,10 +58,40 @@ watch(selectedId, () => {
   if (fileInput.value) fileInput.value.value = ''
   uploadError.value = ''
   notice.value = ''
+  downloadError.value = ''
   void load()
 })
 onMounted(loadBases)
 onBeforeUnmount(() => { active = false; requestId++; controller?.abort() })
+
+async function download(item) {
+  if (downloadingId.value !== null || !canRead.value) return
+  const version = auth.sessionVersion
+  const baseId = selectedId.value
+  downloadingId.value = item.id
+  downloadError.value = ''
+  try {
+    const blob = await downloadDocument(item.id)
+    if (!active || version !== auth.sessionVersion || baseId !== selectedId.value) return
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = item.fileName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch (error) {
+    if (!active || version !== auth.sessionVersion || baseId !== selectedId.value) return
+    // responseType=blob 时，后端 JSON 错误同样会以 Blob 返回。
+    let message
+    try { message = JSON.parse(await error.response?.data?.text()).message } catch { /* 使用通用提示 */ }
+    if (active && version === auth.sessionVersion && baseId === selectedId.value)
+      downloadError.value = message || '下载失败，请检查后端和文件存储后重试。'
+  } finally {
+    if (active) downloadingId.value = null
+  }
+}
 
 async function submit() {
   if (!canUpload.value || uploading.value || !selectedId.value) return
@@ -113,6 +145,7 @@ async function submit() {
     <p v-else-if="selectedId" class="demo-note">当前账号没有上传权限，可联系管理员分配编辑者角色。</p>
     <p v-if="uploadError" class="load-error" role="alert">{{ uploadError }}</p>
     <p v-if="notice" class="loading-notice" role="status">{{ notice }}</p>
+    <p v-if="downloadError" class="load-error" role="alert">{{ downloadError }}</p>
     <p v-if="!canRead" class="load-error">当前账号没有查看文档的权限。</p>
     <p v-else-if="loading" role="status">正在加载文档……</p>
     <p v-else-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
@@ -120,7 +153,10 @@ async function submit() {
     <ul v-else class="document-list" aria-label="已上传文档">
       <li v-for="item in documents" :key="item.id">
         <div><strong>{{ item.fileName }}</strong><small>{{ item.fileType.toUpperCase() }} · {{ formatFileSize(item.fileSize) }} · {{ item.createdAt.replace('T', ' ') }}</small></div>
-        <span class="demo-badge">{{ item.status === 'UPLOADED' ? '已上传' : item.status }}</span>
+        <div class="document-actions">
+          <span class="demo-badge">{{ item.status === 'UPLOADED' ? '已上传' : item.status }}</span>
+          <button v-if="canRead" type="button" class="secondary-button" :disabled="downloadingId !== null" :aria-label="`下载 ${item.fileName}`" @click="download(item)">{{ downloadingId === item.id ? '正在下载……' : '下载原文件' }}</button>
+        </div>
       </li>
     </ul>
   </section>

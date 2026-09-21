@@ -31,6 +31,7 @@ test('interceptors attach only local protected tokens and ignore old 401 respons
     assert.equal((await client.get('/knowledge-bases')).data, 'Bearer first')
     assert.equal((await client.get('/documents?knowledgeBaseId=1')).data, 'Bearer first')
     assert.equal((await client.post('/documents', new FormData())).data, 'Bearer first')
+    assert.equal((await client.get('/documents/12/download')).data, 'Bearer first')
     assert.equal((await client.post('/auth/login', {})).data, undefined)
     assert.equal((await client.get('https://example.com/knowledge-bases')).data, undefined)
     let rejectOld

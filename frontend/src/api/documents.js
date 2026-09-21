@@ -10,3 +10,7 @@ export async function uploadDocument(knowledgeBaseId, file) {
   // 浏览器自动生成 multipart boundary，不手动填写 Content-Type。
   return (await http.post('/documents', form, { timeout: 30000 })).data
 }
+
+export async function downloadDocument(id) {
+  return (await http.get(`/documents/${id}/download`, { responseType: 'blob', timeout: 30000 })).data
+}

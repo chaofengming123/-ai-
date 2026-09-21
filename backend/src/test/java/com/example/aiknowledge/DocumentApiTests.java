@@ -121,6 +121,22 @@ class DocumentApiTests {
         assertEquals(201,upload(baseId,"notes.txt",text,token).statusCode());
     }
 
+    @Test void legacyLocalDownloadRequiresReadPermissionAndReturnsAttachment() throws Exception {
+        var created=upload(baseId,"notes.md",text,token);
+        long id=json.readTree(created.body()).get("id").asLong();
+        String path="/api/documents/"+id+"/download";
+        assertEquals(401,request("GET",path,null,null,null).statusCode());
+        var response=request("GET",path,null,null,token);
+        assertEquals(200,response.statusCode());
+        assertArrayEquals(text,response.body().getBytes(StandardCharsets.UTF_8));
+        assertTrue(response.headers().firstValue("Content-Disposition").orElseThrow().startsWith("attachment;"));
+        assertTrue(response.headers().firstValue("Cache-Control").orElseThrow().contains("no-store"));
+        assertEquals("nosniff",response.headers().firstValue("X-Content-Type-Options").orElseThrow());
+        assertEquals(404,request("GET","/api/documents/9223372036854775807/download",null,null,token).statusCode());
+        jdbc.update("DELETE FROM app_user_role WHERE user_id=?",userId);
+        assertEquals(403,request("GET",path,null,null,token).statusCode());
+    }
+
     @Test void invalidFilesAndMissingFieldsLeaveNoMetadataOrFiles() throws Exception {
         assertEquals(400,upload(baseId,"empty.txt",new byte[0],token).statusCode());
         assertEquals(400,upload(baseId,"wrong.pdf",text,token).statusCode());
@@ -152,7 +168,7 @@ class DocumentApiTests {
         Path blocked = Files.createTempFile(directory,"blocked-",".tmp");
         try {
             var storage = new LocalDocumentStorage(blocked.toString());
-            var service = new DocumentService(documentMapper, baseMapper, storage);
+            var service = new DocumentService(documentMapper, baseMapper, new DocumentStorage(storage,Optional.empty(),"local"));
             assertThrows(com.example.aiknowledge.exception.DocumentException.class, () ->
                 new TransactionTemplate(transactions).execute(tx -> service.upload(baseId,
                         new MockMultipartFile("file","failed.txt","text/plain",text))));

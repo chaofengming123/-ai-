@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { validateDocument, MAX_DOCUMENT_BYTES } from '../src/utils/documents.js'
-import { uploadDocument, fetchDocuments } from '../src/api/documents.js'
+import { uploadDocument, fetchDocuments, downloadDocument } from '../src/api/documents.js'
 import { http } from '../src/api/http.js'
 
 test('upload validation handles missing, empty, wrong-extension and oversized files', () => {
@@ -32,5 +32,12 @@ test('document API sends the selected base and file as multipart data and never 
       return { config, data: [], status: 200, headers: {} }
     }
     assert.deepEqual(await fetchDocuments(9), [])
+    const bytes = new Blob(['原文件'])
+    http.defaults.adapter = async config => {
+      assert.equal(config.url, '/documents/12/download')
+      assert.equal(config.responseType, 'blob')
+      return { config, data: bytes, status: 200, headers: {} }
+    }
+    assert.equal(await (await downloadDocument(12)).text(), '原文件')
   } finally { http.defaults.adapter = original }
 })

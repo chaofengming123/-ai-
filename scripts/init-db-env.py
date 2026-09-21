@@ -19,6 +19,14 @@ if 'JWT_SECRET' not in values:
         file.write('\nJWT_SECRET=' + base64.b64encode(secrets.token_bytes(32)).decode() + '\n')
     path.chmod(0o600)
 password = values['DB_TEST_PASSWORD']
+for key, value in {
+    'MINIO_ROOT_USER': 'course_' + secrets.token_hex(8),
+    'MINIO_ROOT_PASSWORD': secrets.token_hex(24),
+}.items():
+    if key not in values:
+        with path.open('a', encoding='utf-8') as file:
+            file.write(f'\n{key}={value}\n')
+path.chmod(0o600)
 if not re.fullmatch(r'[a-f0-9]{48}', password):
     raise SystemExit('Expected generated hexadecimal test password.')
 init = root / 'docker/mysql/init'

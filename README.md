@@ -2,7 +2,7 @@
 
 从零逐步实现 Vue 3 + Spring Boot 企业知识管理与 RAG 问答系统。
 
-当前第 18 课：已实现知识库 CRUD、登录、角色权限和 TXT / Markdown 文档上传。MySQL 保存账号、知识库和文件元数据，原文件暂存后端本地目录。尚未接入 MinIO、文档解析或 AI 问答。
+当前第 19 课：已实现知识库 CRUD、登录、角色权限、TXT / Markdown 文档上传和原文件下载。MySQL 保存元数据，新文件进入 MinIO；支持保留本地副本的旧文件迁移。尚未实现 PDF / DOCX、文档解析或 AI 问答。
 
 ## 启动前端
 
@@ -20,7 +20,7 @@ npm run dev
 
 ```bash
 python3 scripts/init-db-env.py
-docker compose --env-file docker/.env -f docker/compose.yml up -d --wait
+docker compose --env-file docker/.env -f docker/compose.yml up -d --build --wait
 scripts/backend.sh spring-boot:run
 ```
 
@@ -28,15 +28,17 @@ scripts/backend.sh spring-boot:run
 
 `GET /api/health` 仍是基础服务存活检查，不检查数据库健康。
 
-只启动一份后端，避免与 IDEA 抢占 8080。更新代码后需要重启后端，以应用新增迁移和接口。第十八课文档入口为 `/documents`，支持单个最多 1 MB 的 UTF-8 `.txt` / `.md` 文件。默认从 backend 目录启动时原文件保存在 `backend/uploads/documents`；可用 `DOCUMENT_STORAGE_DIR` 指定固定绝对路径。原文件不提交到 Git。含文档的知识库暂不允许删除。
+只启动一份后端，避免与 IDEA 抢占 8080。更新代码后需要重启后端，以应用新增迁移和接口。文档入口为 `/documents`，支持单个最多 1 MB 的 UTF-8 `.txt` / `.md` 文件及下载。MinIO API 为本机 9000，控制台为 9001；首次从固定源码版本构建可能需要数分钟。IDEA 启动需补充 docker/.env 中新增的 MINIO_ROOT_USER / MINIO_ROOT_PASSWORD 环境变量。
 
-运行 `scripts/backend.sh test` 使用独立 MySQL 测试库。前端 `npm test` 验证共享状态和错误处理。
+旧文件默认位于 `backend/uploads/documents`，可用 `DOCUMENT_STORAGE_DIR` 指定原目录绝对路径。运行 `scripts/migrate-documents.sh preview` 预览，再用 `scripts/migrate-documents.sh apply` 迁移；复制校验后切换记录，保留本地备份。原文件与密钥不提交到 Git。含文档的知识库暂不允许删除。MinIO 社区发行状态、构建及详细配置见第十九课。
+
+运行 `scripts/backend.sh test` 使用独立 MySQL 测试库，MinIO 测试使用随机私有桶并在结束后清理，需先启动两个容器。前端 `npm test` 验证共享状态和错误处理。
 
 ## 目录
 
 - `frontend/`：Vue 前端代码。
 - `backend/`：Spring Boot + MyBatis-Plus + MySQL 后端。
-- `docker/`：MySQL 开发容器与测试库初始化。
+- `docker/`：MySQL 与 MinIO 开发容器、测试库初始化。
 - `docs/`：学习手册、课程与进度记录。
 
 ## 学习资料
@@ -80,6 +82,8 @@ scripts/backend.sh spring-boot:run
 - [第 17 课：角色与权限关系表（RBAC）](docs/lesson-17.md)
 
 - [第 18 课：第一个文档上传闭环](docs/lesson-18.md)
+
+- [第 19 课：MinIO 对象存储与原文件下载](docs/lesson-19.md)
 
 ## Git 约定
 

@@ -156,3 +156,5 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
 .document-list strong { overflow-wrap: anywhere; }
 .document-list small { display: block; margin-top: 8px; color: #63736b; }
 .document-list .demo-badge { flex-shrink: 0; }
+.document-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 12px; flex-shrink: 0; }
+@media (max-width: 650px) { .document-list li { align-items: flex-start; flex-direction: column; } }

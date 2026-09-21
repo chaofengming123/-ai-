@@ -18,14 +18,23 @@ public class DocumentService {
     public static final int MAX_BYTES = 1024 * 1024;
     private final DocumentMapper documents;
     private final KnowledgeBaseMapper bases;
-    private final LocalDocumentStorage storage;
-    public DocumentService(DocumentMapper documents, KnowledgeBaseMapper bases, LocalDocumentStorage storage) {
+    private final DocumentStorage storage;
+    public DocumentService(DocumentMapper documents, KnowledgeBaseMapper bases, DocumentStorage storage) {
         this.documents = documents; this.bases = bases; this.storage = storage;
     }
     public List<DocumentInfo> list(long baseId) {
         if (bases.selectById(baseId) == null)
             throw new KnowledgeBaseException(KnowledgeBaseException.Kind.NOT_FOUND, "知识库不存在。");
         return documents.list(baseId);
+    }
+    public record Download(String name, byte[] bytes) {}
+    public Download download(long id) {
+        var info=documents.findById(id);
+        if (info==null) throw new KnowledgeBaseException(KnowledgeBaseException.Kind.NOT_FOUND,"文档不存在。");
+        var object=documents.object(id);
+        byte[] bytes=storage.read(object.location());
+        if (bytes.length!=info.fileSize()) throw new DocumentException(STORAGE_FAILURE,"文档内容与记录不一致，请检查存储。");
+        return new Download(info.fileName(),bytes);
     }
     @Transactional
     public DocumentInfo upload(long baseId, MultipartFile file) {
@@ -54,13 +63,13 @@ public class DocumentService {
         // 锁住知识库，使上传与删除不会同时跨过存在性检查。
         if (bases.findForUpdate(baseId) == null)
             throw new KnowledgeBaseException(KnowledgeBaseException.Kind.NOT_FOUND, "知识库不存在。");
-        String key = storage.save(bytes);
+        var stored = storage.save(bytes);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCompletion(int status) {
-                if (status == STATUS_ROLLED_BACK) storage.remove(key);
+                if (status == STATUS_ROLLED_BACK) storage.remove(stored);
             }
         });
-        documents.insert(baseId, name, key, type, bytes.length);
-        return documents.findByKey(key);
+        documents.insert(baseId, name, stored.key(), type, bytes.length, stored.backend(), stored.bucket());
+        return documents.findByKey(stored.key());
     }
 }

@@ -39,4 +39,15 @@ public class LocalDocumentStorage {
             LoggerFactory.getLogger(LocalDocumentStorage.class).error("Failed to clean up document object {}", key, error);
         }
     }
+    public byte[] read(String key) {
+        if (!UUID.fromString(key).toString().equals(key)) throw new IllegalArgumentException("Invalid object key");
+        try (var input = Files.newInputStream(root.resolve(key))) {
+            byte[] bytes=input.readNBytes(DocumentService.MAX_BYTES + 1);
+            if (bytes.length > DocumentService.MAX_BYTES) throw new IOException("Unexpected file size");
+            return bytes;
+        } catch (IOException error) {
+            throw new DocumentException(DocumentException.Kind.STORAGE_FAILURE,
+                    "无法读取旧文档，请确认原文件存在且 DOCUMENT_STORAGE_DIR 指向原上传目录。");
+        }
+    }
 }

@@ -19,5 +19,23 @@ services:
       timeout: 5s
       retries: 30
       start_period: 30s
+  minio:
+    build: ./minio
+    image: ai-knowledge-minio:2025-10-15
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Run scripts/init-db-env.py}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run scripts/init-db-env.py}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 volumes:
   mysql_data:
+  minio_data:

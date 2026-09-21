@@ -49,6 +49,7 @@ public class AuthSecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/documents").hasAuthority("document:read")
+                .requestMatchers(HttpMethod.GET, "/api/documents/*/download").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.POST, "/api/documents").hasAuthority("document:upload")
                 .requestMatchers("/api/documents", "/api/documents/**").denyAll()
                 .requestMatchers(HttpMethod.GET, "/api/knowledge-bases", "/api/knowledge-bases/**").hasAuthority("knowledge-base:read")
