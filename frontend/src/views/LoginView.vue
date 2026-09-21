@@ -37,7 +37,7 @@ async function submit() {
     </div>
     <div v-if="auth.isLoggedIn" class="registration-form">
       <h2>你好，{{ auth.user.username }}</h2>
-      <p>账号编号：{{ auth.user.id }}</p>
+      <p>账号编号：{{ auth.user.id }} · {{ auth.roleLabel }}</p>
       <p class="form-hint">本次登录最长 15 分钟。刷新页面需要重新登录。</p>
       <button type="button" class="primary-button" :disabled="auth.isBusy" @click="auth.verifySession()">
         {{ auth.isBusy ? '正在核对…' : '核对登录状态' }}
@@ -58,6 +58,6 @@ async function submit() {
       <RouterLink to="/register">还没有账号？创建账号</RouterLink>
     </form>
     <p v-if="auth.notice" class="success-notice" role="status">{{ auth.notice }}</p>
-    <p class="demo-note">知识库需要登录后访问。当前所有登录用户共享知识库，尚未区分角色和数据归属。</p>
+    <p class="demo-note">知识库需要登录后访问。普通用户可查看，管理员可管理；知识库仍为共享数据，尚未按创建者隔离。</p>
   </section>
 </template>

@@ -34,12 +34,13 @@ public class UserService {
         }
         UserEntity entity = new UserEntity();
         entity.setUsername(normalizedUsername);
+        entity.setRole("USER"); // 注册只能创建普通用户，不接受客户端指定角色。
         entity.setPasswordHash(passwordEncoder.encode(password));
         try {
             mapper.insert(entity);
         } catch (DuplicateKeyException error) {
             throw new RegistrationException(CONFLICT, "这个用户名已被使用，请换一个用户名。");
         }
-        return new UserResponse(entity.getId(), entity.getUsername());
+        return new UserResponse(entity.getId(), entity.getUsername(), entity.getRole());
     }
 }

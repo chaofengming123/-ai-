@@ -21,7 +21,9 @@ test('guard protects routes and return destinations stay inside known pages', ()
 test('interceptors attach only local protected tokens and ignore old 401 responses', async () => {
   const client = axios.create({ baseURL: '/api' })
   let logouts = 0
+  let refreshes = 0
   const auth = { sessionVersion: 1, accessToken: 'first', isLoggedIn: true,
+    verifySession() { refreshes++ },
     logout() { logouts++; this.sessionVersion++; this.isLoggedIn = false; this.accessToken = '' } }
   const dispose = installAuthInterceptors(client, auth)
   try {
@@ -43,6 +45,7 @@ test('interceptors attach only local protected tokens and ignore old 401 respons
     client.defaults.adapter = async config => { throw { config, response: { status: 403 } } }
     await assert.rejects(client.get('/knowledge-bases'))
     assert.equal(logouts, 0)
+    assert.equal(refreshes, 1)
     client.defaults.adapter = async config => { throw { config, response: { status: 401 } } }
     await assert.rejects(client.get('/knowledge-bases'))
     assert.equal(logouts, 1)

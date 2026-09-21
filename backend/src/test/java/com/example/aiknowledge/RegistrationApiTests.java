@@ -43,7 +43,8 @@ class RegistrationApiTests {
         var first = register("  " + username.toUpperCase(java.util.Locale.ROOT) + "  ", password);
         assertEquals(201, first.statusCode());
         var response = json.readTree(first.body());
-        assertEquals(2, response.size());
+        assertEquals(3, response.size());
+        assertEquals("USER", response.get("role").asText());
         assertEquals(username, response.get("username").asText());
         assertFalse(first.body().contains("password"));
         UserEntity stored = mapper.selectById(response.get("id").asLong());

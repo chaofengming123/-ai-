@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useKnowledgeBaseStore } from './knowledgeBases.js'
+import { canManageKnowledgeBases as canManage, roleLabel as labelRole } from '../utils/permissions.js'
 import { loginUser, fetchCurrentUser } from '../api/auth.js'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -8,6 +9,8 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref('')
   const isBusy = ref(false)
   const notice = ref('')
+  const canManageKnowledgeBases = computed(() => isLoggedIn.value && canManage(user.value))
+  const roleLabel = computed(() => labelRole(user.value))
   const isLoggedIn = computed(() => Boolean(user.value && token.value))
   const sessionVersion = ref(0)
   const accessToken = computed(() => token.value)
@@ -69,5 +72,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { accessToken, sessionVersion, user, isLoggedIn, isBusy, notice, login, logout, verifySession }
+  return { canManageKnowledgeBases, roleLabel, accessToken, sessionVersion, user, isLoggedIn, isBusy, notice, login, logout, verifySession }
 })

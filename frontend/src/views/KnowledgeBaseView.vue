@@ -1,10 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import KnowledgeBaseCard from '../components/KnowledgeBaseCard.vue'
 import { storeToRefs } from 'pinia'
+import { useAuthStore } from '../stores/auth.js'
 import { useKnowledgeBaseStore } from '../stores/knowledgeBases.js'
 
 // 两个页面使用同一份 store，搜索词与弹窗仍由当前页面管理。
+const auth = useAuthStore()
 const knowledgeBaseStore = useKnowledgeBaseStore()
 const { knowledgeBases, isLoading, isSaving, loadError, hasLoaded } = storeToRefs(knowledgeBaseStore)
 const searchQuery = ref('')
@@ -45,6 +47,7 @@ function openKnowledgeBaseDetail(id) {
 }
 
 function openCreateDialog() {
+  if (!auth.canManageKnowledgeBases) return
   editingId.value = null
   name.value = ''
   description.value = ''
@@ -54,6 +57,7 @@ function openCreateDialog() {
 }
 
 function openEditDialog(id) {
+  if (!auth.canManageKnowledgeBases) return
   const record = knowledgeBases.value.find(item => item.id === id)
   if (!record) return
   editingId.value = id
@@ -66,6 +70,7 @@ function openEditDialog(id) {
 }
 
 async function saveKnowledgeBase() {
+  if (!auth.canManageKnowledgeBases) { error.value = '当前账号没有管理权限。'; return }
   error.value = ''
   const data = { name: name.value, description: description.value }
   const result = editingId.value === null
@@ -80,6 +85,7 @@ async function saveKnowledgeBase() {
 }
 
 function openDeleteDialog(id) {
+  if (!auth.canManageKnowledgeBases) return
   const record = knowledgeBases.value.find(item => item.id === id)
   if (!record) return
   deleteTarget.value = { id: record.id, name: record.name }
@@ -89,7 +95,7 @@ function openDeleteDialog(id) {
 }
 
 async function confirmDelete() {
-  if (!deleteTarget.value) return
+  if (!auth.canManageKnowledgeBases || !deleteTarget.value) return
   deleteError.value = ''
   const result = await knowledgeBaseStore.removeKnowledgeBase(deleteTarget.value.id)
   if (result.error) {
@@ -99,6 +105,13 @@ async function confirmDelete() {
   deleteDialog.value.close()
   notice.value = `已删除“${deleteTarget.value.name}”。`
 }
+watch(() => auth.canManageKnowledgeBases, allowed => {
+  if (!allowed) {
+    createDialog.value?.close()
+    deleteDialog.value?.close()
+    notice.value = '当前账号可查看知识库，管理操作需要管理员权限。'
+  }
+})
 </script>
 
 <template>
@@ -111,9 +124,10 @@ async function confirmDelete() {
       </div>
       <div class="heading-actions">
         <span class="demo-badge">MySQL 数据</span>
-        <button type="button" class="primary-button" :disabled="isLoading || isSaving || !hasLoaded" @click="openCreateDialog">+ 新建知识库</button>
+        <button v-if="auth.canManageKnowledgeBases" type="button" class="primary-button" :disabled="isLoading || isSaving || !hasLoaded" @click="openCreateDialog">+ 新建知识库</button>
       </div>
     </div>
+    <p v-if="!auth.canManageKnowledgeBases" class="demo-note">当前为普通用户，可搜索和查看知识库。新建、编辑和删除需要管理员权限。</p>
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
     <div class="load-controls">
       <span>数据来自本地后端服务</span>
@@ -143,6 +157,7 @@ async function confirmDelete() {
         :key="knowledgeBase.id"
         :knowledge-base="knowledgeBase"
         :busy="isLoading || isSaving"
+        :can-manage="auth.canManageKnowledgeBases"
         @edit="openEditDialog"
         @delete="openDeleteDialog"
         @view-detail="openKnowledgeBaseDetail"

@@ -22,7 +22,7 @@ watch(() => auth.isLoggedIn, loggedIn => {
         <span>企业工作空间 <span class="breadcrumb">/ {{ route.meta.title }}</span></span>
         <div class="account-controls">
           <template v-if="auth.isLoggedIn">
-            <span>{{ auth.user.username }}</span>
+            <span>{{ auth.user.username }} · {{ auth.roleLabel }}</span>
             <button type="button" class="secondary-button" @click="auth.logout()">退出</button>
           </template>
           <RouterLink v-else to="/login">登录</RouterLink>

@@ -21,6 +21,11 @@ export function installAuthInterceptors(http, auth) {
         config.authVersion === auth.sessionVersion && auth.isLoggedIn) {
       auth.logout('登录已失效，请重新登录。')
     }
+    // 403 不退出、不重试写操作；只刷新一次身份信息，让界面跟上角色变更。
+    if (config && protectedRequest(config) && config.url !== '/auth/me' &&
+        error.response?.status === 403 && config.authVersion === auth.sessionVersion && auth.isLoggedIn) {
+      void auth.verifySession?.()
+    }
     return Promise.reject(error)
   })
   return () => {
