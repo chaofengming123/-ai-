@@ -23,7 +23,12 @@ command = [
 def query(sql):
     result = subprocess.run(command, input=sql, text=True, capture_output=True)
     if result.returncode:
-        raise SystemExit("数据库操作失败。请确认 Docker MySQL 已启动，并使用本项目的本地数据库配置。")
+        detail = result.stderr.strip().splitlines()
+        reason = detail[-1] if detail else "没有返回具体原因"
+        raise SystemExit(
+            "数据库操作失败。请确认 Docker Desktop 和本项目 MySQL 已启动。\n"
+            f"原始原因：{reason}"
+        )
     return result.stdout.strip()
 
 roles = sorted(set(args.role))
@@ -31,9 +36,11 @@ role_values = ",".join(
     f"((SELECT id FROM app_user WHERE username='{username}'),(SELECT id FROM app_role WHERE code='{role}'))"
     for role in roles
 )
-current = query(f"SELECT COALESCE(GROUP_CONCAT(r.code ORDER BY r.code),'未分配角色') FROM app_user u LEFT JOIN app_user_role ur ON ur.user_id=u.id LEFT JOIN app_role r ON r.id=ur.role_id WHERE u.username='{username}' GROUP BY u.id;")
-if not current:
+current_row = query(f"SELECT u.id,GROUP_CONCAT(r.code ORDER BY r.code) FROM app_user u LEFT JOIN app_user_role ur ON ur.user_id=u.id LEFT JOIN app_role r ON r.id=ur.role_id WHERE u.username='{username}' GROUP BY u.id;")
+if not current_row:
     raise SystemExit("未找到该用户名，请先注册；未做任何修改。")
+parts = current_row.split("\t", 1)
+current = parts[1] if len(parts) == 2 and parts[1] != "NULL" else "未分配角色"
 print(f"账号 {username}：{current} → {','.join(roles)}（替换全部角色）")
 if not args.apply:
     print("仅预览。如确认要修改该账号，在同一命令后添加 --apply。")
