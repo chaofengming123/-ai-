@@ -11,7 +11,7 @@ const knowledgeBaseStore = useKnowledgeBaseStore()
 const { knowledgeBases, isLoading, isSaving, loadError, hasLoaded } = storeToRefs(knowledgeBaseStore)
 const searchQuery = ref('')
 onMounted(() => {
-  if (!hasLoaded.value) knowledgeBaseStore.loadKnowledgeBases()
+  if (auth.canReadKnowledgeBases && !hasLoaded.value) knowledgeBaseStore.loadKnowledgeBases()
 })
 
 // 计算结果用于展示，完整列表仍保存在 knowledgeBases 中。
@@ -47,7 +47,7 @@ function openKnowledgeBaseDetail(id) {
 }
 
 function openCreateDialog() {
-  if (!auth.canManageKnowledgeBases) return
+  if (!auth.canCreateKnowledgeBases) return
   editingId.value = null
   name.value = ''
   description.value = ''
@@ -57,7 +57,7 @@ function openCreateDialog() {
 }
 
 function openEditDialog(id) {
-  if (!auth.canManageKnowledgeBases) return
+  if (!auth.canEditKnowledgeBases) return
   const record = knowledgeBases.value.find(item => item.id === id)
   if (!record) return
   editingId.value = id
@@ -70,7 +70,7 @@ function openEditDialog(id) {
 }
 
 async function saveKnowledgeBase() {
-  if (!auth.canManageKnowledgeBases) { error.value = '当前账号没有管理权限。'; return }
+  if (!(editingId.value === null ? auth.canCreateKnowledgeBases : auth.canEditKnowledgeBases)) { error.value = '当前账号没有管理权限。'; return }
   error.value = ''
   const data = { name: name.value, description: description.value }
   const result = editingId.value === null
@@ -85,7 +85,7 @@ async function saveKnowledgeBase() {
 }
 
 function openDeleteDialog(id) {
-  if (!auth.canManageKnowledgeBases) return
+  if (!auth.canDeleteKnowledgeBases) return
   const record = knowledgeBases.value.find(item => item.id === id)
   if (!record) return
   deleteTarget.value = { id: record.id, name: record.name }
@@ -95,7 +95,7 @@ function openDeleteDialog(id) {
 }
 
 async function confirmDelete() {
-  if (!auth.canManageKnowledgeBases || !deleteTarget.value) return
+  if (!auth.canDeleteKnowledgeBases || !deleteTarget.value) return
   deleteError.value = ''
   const result = await knowledgeBaseStore.removeKnowledgeBase(deleteTarget.value.id)
   if (result.error) {
@@ -109,7 +109,7 @@ watch(() => auth.canManageKnowledgeBases, allowed => {
   if (!allowed) {
     createDialog.value?.close()
     deleteDialog.value?.close()
-    notice.value = '当前账号可查看知识库，管理操作需要管理员权限。'
+    notice.value = '当前账号的操作权限已更新。'
   }
 })
 </script>
@@ -124,10 +124,10 @@ watch(() => auth.canManageKnowledgeBases, allowed => {
       </div>
       <div class="heading-actions">
         <span class="demo-badge">MySQL 数据</span>
-        <button v-if="auth.canManageKnowledgeBases" type="button" class="primary-button" :disabled="isLoading || isSaving || !hasLoaded" @click="openCreateDialog">+ 新建知识库</button>
+        <button v-if="auth.canCreateKnowledgeBases" type="button" class="primary-button" :disabled="isLoading || isSaving || !hasLoaded" @click="openCreateDialog">+ 新建知识库</button>
       </div>
     </div>
-    <p v-if="!auth.canManageKnowledgeBases" class="demo-note">当前为普通用户，可搜索和查看知识库。新建、编辑和删除需要管理员权限。</p>
+    <p v-if="!auth.canManageKnowledgeBases" class="demo-note">操作按钮根据当前账号权限显示。需要更多权限时，请联系管理员。</p>
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
     <div class="load-controls">
       <span>数据来自本地后端服务</span>
@@ -157,7 +157,8 @@ watch(() => auth.canManageKnowledgeBases, allowed => {
         :key="knowledgeBase.id"
         :knowledge-base="knowledgeBase"
         :busy="isLoading || isSaving"
-        :can-manage="auth.canManageKnowledgeBases"
+        :can-edit="auth.canEditKnowledgeBases"
+        :can-delete="auth.canDeleteKnowledgeBases"
         @edit="openEditDialog"
         @delete="openDeleteDialog"
         @view-detail="openKnowledgeBaseDetail"

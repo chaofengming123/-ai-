@@ -22,7 +22,10 @@ public class LoginService {
     private final JwtEncoder tokens;
     private final String dummyHash;
 
-    public LoginService(UserMapper mapper, PasswordEncoder passwords, JwtEncoder tokens) {
+    private final UserAccessService access;
+
+    public LoginService(UserMapper mapper, PasswordEncoder passwords, JwtEncoder tokens, UserAccessService access) {
+        this.access = access;
         this.mapper = mapper;
         this.passwords = passwords;
         this.tokens = tokens;
@@ -46,7 +49,7 @@ public class LoginService {
                 .id(UUID.randomUUID().toString()).build();
         String token = tokens.encode(JwtEncoderParameters.from(
                 JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
-        return new LoginResponse(token, "Bearer", 900, new UserResponse(user.getId(), user.getUsername(), user.getRole()));
+        return new LoginResponse(token, "Bearer", 900, access.profile(user));
     }
 
     public UserResponse currentUser(Jwt jwt) {
@@ -55,7 +58,7 @@ public class LoginService {
         catch (RuntimeException error) { throw invalid(); }
         UserEntity user = mapper.selectById(id);
         if (user == null) throw invalid();
-        return new UserResponse(user.getId(), user.getUsername(), user.getRole());
+        return access.profile(user);
     }
 
     private BadCredentialsException invalid() {

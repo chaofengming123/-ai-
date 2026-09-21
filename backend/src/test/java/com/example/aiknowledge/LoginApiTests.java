@@ -64,8 +64,8 @@ class LoginApiTests {
         var me = request("/api/auth/me", null, token);
         assertEquals(200, me.statusCode());
         assertEquals(user.id(), json.readTree(me.body()).get("id").asLong());
-        assertEquals(3, json.readTree(me.body()).size());
-        assertEquals("USER", json.readTree(me.body()).get("role").asText());
+        assertEquals(4, json.readTree(me.body()).size());
+        assertEquals("USER", json.readTree(me.body()).get("roles").get(0).asText());
     }
 
     @Test void wrongPasswordAndMissingUserReturnSameError() throws Exception {

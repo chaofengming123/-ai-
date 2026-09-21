@@ -28,6 +28,12 @@ class RoleApiTests {
     @Autowired LoginService login;
     @Autowired UserMapper mapper;
     @Autowired JwtEncoder encoder;
+    @Autowired com.example.aiknowledge.mapper.UserAccessMapper access;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+    void setRole(long id, String role) {
+        jdbc.update("DELETE FROM app_user_role WHERE user_id=?", id);
+        access.assignRole(id, role);
+    }
     final JsonMapper json = JsonMapper.builder().build();
 
     HttpResponse<String> request(String method, String path, String body, String token) throws Exception {
@@ -53,22 +59,18 @@ class RoleApiTests {
             assertTrue(json.readTree(response.body()).get("message").asText().contains("权限"));
         }
         assertEquals(before.body(), request("GET", base, null, token).body());
-        var entity = mapper.selectById(user.id());
-        entity.setRole("ADMIN");
-        mapper.updateById(entity);
-        assertEquals("ADMIN", json.readTree(request("GET", "/api/auth/me", null, token).body()).get("role").asText());
+        setRole(user.id(), "ADMIN");
+        assertEquals("ADMIN", json.readTree(request("GET", "/api/auth/me", null, token).body()).get("roles").get(0).asText());
         var created = request("POST", base, "{\"name\":\"role-test\"}", token);
         assertEquals(201, created.statusCode());
         String path = base + "/" + json.readTree(created.body()).get("id").asLong();
         assertEquals(200, request("PUT", path, "{\"name\":\"role-updated\"}", token).statusCode());
 
-        entity.setRole("USER");
-        mapper.updateById(entity);
+        setRole(user.id(), "USER");
         assertEquals(403, request("DELETE", path, null, token).statusCode());
         assertEquals(200, request("GET", path, null, token).statusCode());
-        assertEquals("USER", json.readTree(request("GET", "/api/auth/me", null, token).body()).get("role").asText());
-        entity.setRole("ADMIN");
-        mapper.updateById(entity);
+        assertEquals("USER", json.readTree(request("GET", "/api/auth/me", null, token).body()).get("roles").get(0).asText());
+        setRole(user.id(), "ADMIN");
         assertEquals(204, request("DELETE", path, null, token).statusCode());
     }
 
@@ -78,9 +80,9 @@ class RoleApiTests {
                 "{\"username\":\"" + name + "\",\"password\":\"test-only-password\",\"role\":\"ADMIN\"}", null);
         assertEquals(201, response.statusCode());
         var data = json.readTree(response.body());
-        assertEquals("USER", data.get("role").asText());
+        assertEquals("USER", data.get("roles").get(0).asText());
         long id = data.get("id").asLong();
-        assertEquals("USER", mapper.selectById(id).getRole());
+        assertEquals(List.of("USER"), access.roles(id));
         Instant now = Instant.now();
         var claims = JwtClaimsSet.builder().subject(Long.toString(id)).issuer(TokenConfig.ISSUER)
                 .issuedAt(now).expiresAt(now.plusSeconds(900))
@@ -88,4 +90,35 @@ class RoleApiTests {
         String token = encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims)).getTokenValue();
         assertEquals(403, request("POST", "/api/knowledge-bases", "{\"name\":\"cannot-escalate\"}", token).statusCode());
     }
+    @Test void multipleRolesUnionPermissionsAndEditorCannotDelete() throws Exception {
+        var user = users.register("editor_" + UUID.randomUUID().toString().substring(0,8), "test-only-password");
+        access.assignRole(user.id(), "EDITOR");
+        assertEquals(List.of("EDITOR", "USER"), access.roles(user.id()));
+        assertEquals(3, access.permissions(user.id()).size());
+        String token = login.login(user.username(), "test-only-password").accessToken();
+        var created = request("POST", "/api/knowledge-bases", "{\"name\":\"editor-test\"}", token);
+        assertEquals(201, created.statusCode());
+        String path = "/api/knowledge-bases/" + json.readTree(created.body()).get("id").asLong();
+        assertEquals(200, request("PUT", path, "{\"name\":\"editor-updated\"}", token).statusCode());
+        assertEquals(403, request("DELETE", path, null, token).statusCode());
+        assertEquals(200, request("GET", path, null, token).statusCode());
+        jdbc.update("DELETE FROM app_user_role WHERE user_id=?", user.id());
+        assertEquals(403, request("GET", path, null, token).statusCode());
+        assertEquals(200, request("GET", "/api/auth/me", null, token).statusCode());
+    }
+
+    @Test void permissionMappingChangeAppliesWithoutNewToken() throws Exception {
+        var user = users.register("perm_" + UUID.randomUUID().toString().substring(0,8), "test-only-password");
+        setRole(user.id(), "EDITOR");
+        String token = login.login(user.username(), "test-only-password").accessToken();
+        try {
+            jdbc.update("DELETE rp FROM app_role_permission rp JOIN app_role r ON r.id=rp.role_id JOIN app_permission p ON p.id=rp.permission_id WHERE r.code='EDITOR' AND p.code='knowledge-base:create'");
+            assertEquals(403, request("POST", "/api/knowledge-bases", "{\"name\":\"blocked\"}", token).statusCode());
+            assertEquals(200, request("GET", "/api/knowledge-bases", null, token).statusCode());
+        } finally {
+            jdbc.update("INSERT INTO app_role_permission SELECT r.id,p.id FROM app_role r CROSS JOIN app_permission p WHERE r.code='EDITOR' AND p.code='knowledge-base:create'");
+        }
+        assertEquals(201, request("POST", "/api/knowledge-bases", "{\"name\":\"restored\"}", token).statusCode());
+    }
+
 }

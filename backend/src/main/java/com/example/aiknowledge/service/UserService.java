@@ -16,11 +16,15 @@ public class UserService {
     private final UserMapper mapper;
     private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserMapper mapper, PasswordEncoder passwordEncoder) {
+    private final UserAccessService access;
+
+    public UserService(UserMapper mapper, PasswordEncoder passwordEncoder, UserAccessService access) {
+        this.access = access;
         this.mapper = mapper;
         this.passwordEncoder = passwordEncoder;
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public UserResponse register(String username, String password) {
         String normalizedUsername = username == null ? "" : username.strip().toLowerCase(Locale.ROOT);
         if (!normalizedUsername.matches("[a-z0-9_]{3,32}")) {
@@ -34,13 +38,13 @@ public class UserService {
         }
         UserEntity entity = new UserEntity();
         entity.setUsername(normalizedUsername);
-        entity.setRole("USER"); // 注册只能创建普通用户，不接受客户端指定角色。
         entity.setPasswordHash(passwordEncoder.encode(password));
         try {
             mapper.insert(entity);
         } catch (DuplicateKeyException error) {
             throw new RegistrationException(CONFLICT, "这个用户名已被使用，请换一个用户名。");
         }
-        return new UserResponse(entity.getId(), entity.getUsername(), entity.getRole());
+        access.assignDefaultRole(entity.getId());
+        return access.profile(entity);
     }
 }

@@ -2,7 +2,8 @@
 // Props 是父页面传入的数据；卡片只负责展示，不修改它。
 defineProps({
   busy: Boolean,
-  canManage: Boolean,
+  canEdit: Boolean,
+  canDelete: Boolean,
   knowledgeBase: {
     type: Object,
     required: true,
@@ -27,9 +28,9 @@ const emit = defineEmits(['view-detail', 'edit', 'delete'])
         <h3>{{ knowledgeBase.name }}</h3>
         <p>{{ knowledgeBase.description }}</p>
         <footer><span class="document-dot" aria-hidden="true"></span>{{ knowledgeBase.documentCount }} 份文档<button type="button" class="card-detail-button" :aria-label="`查看${knowledgeBase.name}的详情`" @click="emit('view-detail', knowledgeBase.id)">查看详情 →</button></footer>
-        <div v-if="canManage" class="card-actions">
-          <button type="button" class="secondary-button" :disabled="busy" :aria-label="`编辑${knowledgeBase.name}`" @click="emit('edit', knowledgeBase.id)">编辑</button>
-          <button type="button" class="danger-button" :disabled="busy" :aria-label="`删除${knowledgeBase.name}`" @click="emit('delete', knowledgeBase.id)">删除</button>
+        <div v-if="canEdit || canDelete" class="card-actions">
+          <button v-if="canEdit" type="button" class="secondary-button" :disabled="busy" :aria-label="`编辑${knowledgeBase.name}`" @click="emit('edit', knowledgeBase.id)">编辑</button>
+          <button v-if="canDelete" type="button" class="danger-button" :disabled="busy" :aria-label="`删除${knowledgeBase.name}`" @click="emit('delete', knowledgeBase.id)">删除</button>
         </div>
       </article>
 </template>

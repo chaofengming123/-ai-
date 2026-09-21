@@ -22,15 +22,15 @@ class KnowledgeBaseApiTests {
     private com.example.aiknowledge.service.LoginService login;
     @org.springframework.beans.factory.annotation.Autowired
     private com.example.aiknowledge.mapper.UserMapper userMapper;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.example.aiknowledge.mapper.UserAccessMapper access;
     private String token;
 
     @org.junit.jupiter.api.BeforeEach
     void authenticate() {
         String name = "kb_" + UUID.randomUUID().toString().substring(0, 8);
         var created = users.register(name, "test-only-password");
-        var admin = userMapper.selectById(created.id());
-        admin.setRole("ADMIN");
-        userMapper.updateById(admin);
+        access.assignRole(created.id(), "ADMIN");
         token = login.login(name, "test-only-password").accessToken();
     }
 

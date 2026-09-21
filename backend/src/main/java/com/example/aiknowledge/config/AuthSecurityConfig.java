@@ -6,7 +6,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import org.springframework.security.web.access.AccessDeniedHandler;
-import java.util.List;
+import com.example.aiknowledge.mapper.UserAccessMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -18,18 +18,19 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class AuthSecurityConfig {
     @Bean
-    JwtAuthenticationConverter databaseRoles(UserMapper users) {
+    JwtAuthenticationConverter databasePermissions(UserMapper users, UserAccessMapper access) {
         var converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             var user = users.selectById(Long.parseLong(jwt.getSubject()));
             if (user == null) throw new InvalidBearerTokenException("Account unavailable");
-            return List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole()));
+            return access.permissions(user.getId()).stream()
+                    .map(code -> (org.springframework.security.core.GrantedAuthority) new SimpleGrantedAuthority(code)).toList();
         });
         return converter;
     }
 
     @Bean
-    SecurityFilterChain authSecurity(HttpSecurity http, JwtAuthenticationConverter databaseRoles) throws Exception {
+    SecurityFilterChain authSecurity(HttpSecurity http, JwtAuthenticationConverter databasePermissions) throws Exception {
         AuthenticationEntryPoint unauthorized = (request, response, error) -> {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setHeader("WWW-Authenticate", "Bearer");
@@ -39,7 +40,7 @@ public class AuthSecurityConfig {
         AccessDeniedHandler forbidden = (request, response, error) -> {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"message\":\"当前账号没有管理知识库的权限，请联系管理员。\"}");
+            response.getWriter().write("{\"message\":\"当前账号没有执行此操作的权限，请联系管理员。\"}");
         };
         // 角色以数据库当前值为准，JWT 只证明身份。
         http.securityMatcher("/api/auth/**", "/api/knowledge-bases", "/api/knowledge-bases/**")
@@ -47,12 +48,15 @@ public class AuthSecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/knowledge-bases", "/api/knowledge-bases/**").authenticated()
-                .requestMatchers(HttpMethod.HEAD, "/api/knowledge-bases", "/api/knowledge-bases/**").authenticated()
-                .requestMatchers("/api/knowledge-bases", "/api/knowledge-bases/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/knowledge-bases", "/api/knowledge-bases/**").hasAuthority("knowledge-base:read")
+                .requestMatchers(HttpMethod.HEAD, "/api/knowledge-bases", "/api/knowledge-bases/**").hasAuthority("knowledge-base:read")
+                .requestMatchers(HttpMethod.POST, "/api/knowledge-bases").hasAuthority("knowledge-base:create")
+                .requestMatchers(HttpMethod.PUT, "/api/knowledge-bases/*").hasAuthority("knowledge-base:update")
+                .requestMatchers(HttpMethod.DELETE, "/api/knowledge-bases/*").hasAuthority("knowledge-base:delete")
+                .requestMatchers("/api/knowledge-bases", "/api/knowledge-bases/**").denyAll()
                 .anyRequest().authenticated())
             .exceptionHandling(errors -> errors.authenticationEntryPoint(unauthorized).accessDeniedHandler(forbidden))
-            .oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.jwtAuthenticationConverter(databaseRoles))
+            .oauth2ResourceServer(resource -> resource.jwt(jwt -> jwt.jwtAuthenticationConverter(databasePermissions))
                 .authenticationEntryPoint(unauthorized));
         return http.build();
     }

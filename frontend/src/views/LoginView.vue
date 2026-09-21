@@ -58,6 +58,6 @@ async function submit() {
       <RouterLink to="/register">还没有账号？创建账号</RouterLink>
     </form>
     <p v-if="auth.notice" class="success-notice" role="status">{{ auth.notice }}</p>
-    <p class="demo-note">知识库需要登录后访问。普通用户可查看，管理员可管理；知识库仍为共享数据，尚未按创建者隔离。</p>
+    <p class="demo-note">知识库需要登录后访问。普通用户可查看，编辑者可新建和编辑，管理员还可删除；知识库仍为共享数据，尚未按创建者隔离。</p>
   </section>
 </template>

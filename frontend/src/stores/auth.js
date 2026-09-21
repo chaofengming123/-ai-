@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useKnowledgeBaseStore } from './knowledgeBases.js'
-import { canManageKnowledgeBases as canManage, roleLabel as labelRole } from '../utils/permissions.js'
+import { hasPermission, canManageKnowledgeBases as canManage, roleLabel as labelRole } from '../utils/permissions.js'
 import { loginUser, fetchCurrentUser } from '../api/auth.js'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -10,6 +10,10 @@ export const useAuthStore = defineStore('auth', () => {
   const isBusy = ref(false)
   const notice = ref('')
   const canManageKnowledgeBases = computed(() => isLoggedIn.value && canManage(user.value))
+  const canReadKnowledgeBases = computed(() => isLoggedIn.value && hasPermission(user.value, 'read'))
+  const canCreateKnowledgeBases = computed(() => isLoggedIn.value && hasPermission(user.value, 'create'))
+  const canEditKnowledgeBases = computed(() => isLoggedIn.value && hasPermission(user.value, 'update'))
+  const canDeleteKnowledgeBases = computed(() => isLoggedIn.value && hasPermission(user.value, 'delete'))
   const roleLabel = computed(() => labelRole(user.value))
   const isLoggedIn = computed(() => Boolean(user.value && token.value))
   const sessionVersion = ref(0)
@@ -61,6 +65,10 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const current = await fetchCurrentUser(token.value)
       if (generation !== requestGeneration) return
+      if (JSON.stringify(user.value?.permissions) !== JSON.stringify(current.permissions)) {
+        useKnowledgeBaseStore().reset()
+        sessionVersion.value++ // 权限变化后销毁旧页面及其缓存。
+      }
       user.value = current
       notice.value = '后端已确认当前登录身份。'
     } catch (error) {
@@ -72,5 +80,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { canManageKnowledgeBases, roleLabel, accessToken, sessionVersion, user, isLoggedIn, isBusy, notice, login, logout, verifySession }
+  return { canReadKnowledgeBases, canCreateKnowledgeBases, canEditKnowledgeBases, canDeleteKnowledgeBases, canManageKnowledgeBases, roleLabel, accessToken, sessionVersion, user, isLoggedIn, isBusy, notice, login, logout, verifySession }
 })
