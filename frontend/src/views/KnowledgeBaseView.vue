@@ -192,7 +192,7 @@ watch(() => auth.canManageKnowledgeBases, allowed => {
       <form @submit.prevent="confirmDelete">
         <h2 id="delete-title">删除知识库</h2>
         <p class="delete-warning">确定删除“{{ deleteTarget?.name }}”？这条知识库记录将从数据库中删除，无法在页面中恢复。</p>
-        <p class="form-hint">当前尚未接入真实文档，本操作只删除知识库记录。</p>
+        <p class="form-hint">仅可删除没有文档的知识库；含文档的知识库会保留并提示原因。</p>
         <p v-if="deleteError" class="form-error" role="alert">{{ deleteError }}</p>
         <div class="dialog-actions">
           <button type="button" class="secondary-button" autofocus :disabled="isSaving" @click="deleteDialog.close()">取消</button>
@@ -208,7 +208,7 @@ watch(() => auth.canManageKnowledgeBases, allowed => {
         <dt>分类</dt><dd>{{ selectedKnowledgeBase.category }}</dd>
         <dt>文档数量</dt><dd>{{ selectedKnowledgeBase.documentCount }} 份文档</dd>
       </dl>
-      <p class="form-hint">展示本次列表读取的后端记录，尚未接入真实文档。</p>
+      <p class="form-hint">文档数量统计实际上传记录。请前往“文档管理”选择此知识库查看文件列表。</p>
       <div class="dialog-actions">
         <button type="button" class="primary-button" autofocus @click="detailDialog.close()">关闭</button>
       </div>

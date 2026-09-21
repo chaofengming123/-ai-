@@ -94,7 +94,7 @@ class RoleApiTests {
         var user = users.register("editor_" + UUID.randomUUID().toString().substring(0,8), "test-only-password");
         access.assignRole(user.id(), "EDITOR");
         assertEquals(List.of("EDITOR", "USER"), access.roles(user.id()));
-        assertEquals(3, access.permissions(user.id()).size());
+        assertEquals(3, access.permissions(user.id()).stream().filter(p -> p.startsWith("knowledge-base:")).count());
         String token = login.login(user.username(), "test-only-password").accessToken();
         var created = request("POST", "/api/knowledge-bases", "{\"name\":\"editor-test\"}", token);
         assertEquals(201, created.statusCode());

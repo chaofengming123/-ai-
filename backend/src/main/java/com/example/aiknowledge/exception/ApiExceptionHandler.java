@@ -11,6 +11,27 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class ApiExceptionHandler {
     public record ErrorResponse(String message) { }
 
+    @ExceptionHandler(DocumentException.class)
+    public ResponseEntity<ErrorResponse> handleDocument(DocumentException error) {
+        HttpStatus status = switch (error.kind()) {
+            case INVALID_INPUT -> HttpStatus.BAD_REQUEST;
+            case TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE;
+            case STORAGE_FAILURE -> HttpStatus.INTERNAL_SERVER_ERROR;
+        };
+        return ResponseEntity.status(status).body(new ErrorResponse(error.getMessage()));
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleLargeFile() {
+        return ResponseEntity.status(413).body(new ErrorResponse("文件不能超过 1 MB，请求总大小不能超过 2 MB。"));
+    }
+
+    @ExceptionHandler({org.springframework.web.multipart.support.MissingServletRequestPartException.class,
+            org.springframework.web.bind.MissingServletRequestParameterException.class})
+    public ResponseEntity<ErrorResponse> handleMissingPart() {
+        return ResponseEntity.badRequest().body(new ErrorResponse("请提供知识库编号和文件。"));
+    }
+
     @ExceptionHandler(KnowledgeBaseException.class)
     public ResponseEntity<ErrorResponse> handleBusinessError(KnowledgeBaseException error) {
         HttpStatus status = switch (error.kind()) {

@@ -4,7 +4,7 @@ export function installAuthInterceptors(http, auth) {
     // 只向本项目相对路径附带凭证，不能向任意绝对地址发送。
     return config.baseURL === '/api' && (
       config.url === '/auth/me' ||
-      /^\/knowledge-bases(?:\/|$|\?)/.test(config.url ?? '')
+      /^\/(?:knowledge-bases|documents)(?:\/|$|\?)/.test(config.url ?? '')
     )
   }
   const requestId = http.interceptors.request.use(config => {

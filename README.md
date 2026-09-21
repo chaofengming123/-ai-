@@ -2,7 +2,7 @@
 
 从零逐步实现 Vue 3 + Spring Boot 企业知识管理与 RAG 问答系统。
 
-当前第 11 课将知识库迁入 MySQL：Vue → Controller → Service → Mapper → MySQL。支持列表、详情、创建和搜索；数据库数据卷保留记录。尚未实现登录、权限、文档处理或 AI。
+当前第 18 课：已实现知识库 CRUD、登录、角色权限和 TXT / Markdown 文档上传。MySQL 保存账号、知识库和文件元数据，原文件暂存后端本地目录。尚未接入 MinIO、文档解析或 AI 问答。
 
 ## 启动前端
 
@@ -14,7 +14,7 @@ npm run dev
 
 打开终端显示的本地地址。`npm run build` 检查并生成生产构建。
 
-## 启动数据库和后端（第 11 课）
+## 启动数据库和后端
 
 需要 Docker Desktop 与 Java 17。在项目根目录运行：
 
@@ -27,6 +27,8 @@ scripts/backend.sh spring-boot:run
 密码保存在被 Git 忽略的 `docker/.env`，不要删除或提交它。MySQL 监听本机 3307，后端 8080；前端开发代理转发 `/api` 请求到后端。命名卷保存数据库，勿使用 `down -v` 删除数据。
 
 `GET /api/health` 仍是基础服务存活检查，不检查数据库健康。
+
+只启动一份后端，避免与 IDEA 抢占 8080。更新代码后需要重启后端，以应用新增迁移和接口。第十八课文档入口为 `/documents`，支持单个最多 1 MB 的 UTF-8 `.txt` / `.md` 文件。默认从 backend 目录启动时原文件保存在 `backend/uploads/documents`；可用 `DOCUMENT_STORAGE_DIR` 指定固定绝对路径。原文件不提交到 Git。含文档的知识库暂不允许删除。
 
 运行 `scripts/backend.sh test` 使用独立 MySQL 测试库。前端 `npm test` 验证共享状态和错误处理。
 
@@ -76,6 +78,8 @@ scripts/backend.sh spring-boot:run
 - [第 16 课：普通用户与管理员，开始角色授权](docs/lesson-16.md)
 
 - [第 17 课：角色与权限关系表（RBAC）](docs/lesson-17.md)
+
+- [第 18 课：第一个文档上传闭环](docs/lesson-18.md)
 
 ## Git 约定
 

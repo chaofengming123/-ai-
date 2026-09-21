@@ -53,7 +53,7 @@ class KnowledgeBaseApiTests {
         assertEquals("工程技术知识库", records.get(1).get("name").asText());
         var detail = request("GET", "/api/knowledge-bases/1", null);
         assertEquals(200, detail.statusCode());
-        assertEquals(3, json.readTree(detail.body()).get("documentCount").asInt());
+        assertEquals(0, json.readTree(detail.body()).get("documentCount").asInt());
     }
 
     @Test void createsNormalizesAndMakesRecordReadable() throws Exception {

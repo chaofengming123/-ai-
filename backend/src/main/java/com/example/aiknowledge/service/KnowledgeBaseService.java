@@ -1,7 +1,6 @@
 package com.example.aiknowledge.service;
 
 import java.util.List;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.dao.DuplicateKeyException;
 import com.example.aiknowledge.entity.KnowledgeBaseEntity;
 import com.example.aiknowledge.mapper.KnowledgeBaseMapper;
@@ -20,13 +19,13 @@ public class KnowledgeBaseService {
     }
 
     public List<KnowledgeBase> list() {
-        return mapper.selectList(new LambdaQueryWrapper<KnowledgeBaseEntity>()
-                .orderByAsc(KnowledgeBaseEntity::getId)).stream().map(this::toResponse).toList();
+        return mapper.listWithDocumentCounts().stream().map(this::toResponse).toList();
     }
 
     public KnowledgeBase get(long id) {
         KnowledgeBaseEntity record = mapper.selectById(id);
         if (record == null) throw new KnowledgeBaseException(NOT_FOUND, "知识库不存在。");
+        record.setDocumentCount(mapper.countDocuments(id));
         return toResponse(record);
     }
 
@@ -71,12 +70,17 @@ public class KnowledgeBaseService {
         } catch (DuplicateKeyException error) {
             throw new KnowledgeBaseException(CONFLICT, "这个名称已经存在，请换一个名称。");
         }
+        entity.setDocumentCount(mapper.countDocuments(id));
         return toResponse(entity);
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public void delete(long id) {
-        if (mapper.deleteById(id) == 0) {
+        if (mapper.findForUpdate(id) == null) {
             throw new KnowledgeBaseException(NOT_FOUND, "知识库不存在，可能已被删除。");
         }
+        if (mapper.countDocuments(id) > 0)
+            throw new KnowledgeBaseException(CONFLICT, "知识库中已有文档，本课暂不支持删除含文档的知识库。");
+        mapper.deleteById(id);
     }
 }

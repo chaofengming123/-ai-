@@ -22,6 +22,7 @@ target/
 # Local runtime data
 /docker/data/
 /backend/uploads/
+/uploads/
 
 # Codex scratch and deliverables
 /work/
