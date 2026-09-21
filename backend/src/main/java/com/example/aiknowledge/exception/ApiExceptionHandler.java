@@ -21,9 +21,16 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(status).body(new ErrorResponse(error.getMessage()));
     }
 
+    @ExceptionHandler(RegistrationException.class)
+    public ResponseEntity<ErrorResponse> handleRegistrationError(RegistrationException error) {
+        HttpStatus status = error.kind() == RegistrationException.Kind.CONFLICT
+                ? HttpStatus.CONFLICT : HttpStatus.BAD_REQUEST;
+        return ResponseEntity.status(status).body(new ErrorResponse(error.getMessage()));
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleInvalidJson() {
-        return ResponseEntity.badRequest().body(new ErrorResponse("请求体必须是包含名称的 JSON 对象。"));
+        return ResponseEntity.badRequest().body(new ErrorResponse("请求体必须是格式正确的 JSON 对象。"));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)

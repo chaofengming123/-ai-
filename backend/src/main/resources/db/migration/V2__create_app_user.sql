@@ -1,0 +1,7 @@
+CREATE TABLE app_user (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    password_hash VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_app_user_username (username)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

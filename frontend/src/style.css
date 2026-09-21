@@ -138,3 +138,9 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
 .danger-button:hover:not(:disabled) { background: #ffe5e5; }
 .danger-button:disabled { opacity: .5; cursor: not-allowed; }
 .delete-warning { line-height: 1.7; overflow-wrap: anywhere; }
+
+.registration-form { max-width: 560px; display: grid; gap: 12px; padding: 28px; background: #fff; border: 1px solid #e2e6e3; border-radius: 14px; }
+.registration-form label { font-weight: 600; }
+.registration-form input { width: 100%; min-width: 0; border: 1px solid #cdd5cf; border-radius: 8px; padding: 12px; font: inherit; }
+.registration-form .form-hint { margin: 0 0 8px; line-height: 1.7; }
+.registration-form .primary-button { justify-self: start; margin-top: 8px; }

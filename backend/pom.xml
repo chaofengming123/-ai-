@@ -18,6 +18,10 @@
 	</properties>
 	<dependencies>
         <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
             <version>3.5.17</version>

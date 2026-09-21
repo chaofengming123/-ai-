@@ -65,7 +65,9 @@ scripts/backend.sh spring-boot:run
 
 - [第 12 课：修改与删除，完成知识库 CRUD](docs/lesson-12.md)
 
-下一小节开始登录基础。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
+- [第 13 课：创建用户与密码哈希](docs/lesson-13.md)
+
+账号创建入口为 /register。下一小节实现登录验证与登录状态。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
 
 ## Git 约定
 
