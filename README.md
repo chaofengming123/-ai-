@@ -6,6 +6,8 @@
 
 ## 启动前端
 
+如果 Windows 要与 Mac 使用同一批账号、文档和向量，参见 [两台电脑共用数据](docs/windows-shared-data.md)。该方式让 Windows 访问 Mac 运行的网页，无需在 Windows 另起一套数据库。
+
 ```bash
 cd frontend
 npm install
