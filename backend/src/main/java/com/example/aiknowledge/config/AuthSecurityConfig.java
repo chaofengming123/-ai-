@@ -43,11 +43,14 @@ public class AuthSecurityConfig {
             response.getWriter().write("{\"message\":\"当前账号没有执行此操作的权限，请联系管理员。\"}");
         };
         // 角色以数据库当前值为准，JWT 只证明身份。
-        http.securityMatcher("/api/auth/**", "/api/knowledge-bases", "/api/knowledge-bases/**", "/api/documents", "/api/documents/**")
+        http.securityMatcher("/api/auth/**", "/api/knowledge-bases", "/api/knowledge-bases/**", "/api/documents", "/api/documents/**", "/api/chat", "/api/chat/**")
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/chat/config").hasAuthority("chat:send")
+                .requestMatchers(HttpMethod.POST, "/api/chat").hasAuthority("chat:send")
+                .requestMatchers("/api/chat", "/api/chat/**").denyAll()
                 .requestMatchers(HttpMethod.GET, "/api/documents").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.GET, "/api/documents/*/download").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.POST, "/api/documents").hasAuthority("document:upload")

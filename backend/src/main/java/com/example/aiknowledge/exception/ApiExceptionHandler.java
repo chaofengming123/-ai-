@@ -10,6 +10,10 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class ApiExceptionHandler {
     public record ErrorResponse(String message) { }
+    @ExceptionHandler(ChatException.class)
+    public ResponseEntity<ErrorResponse> handleChat(ChatException error) {
+        return ResponseEntity.status(error.status()).body(new ErrorResponse(error.getMessage()));
+    }
 
     @ExceptionHandler(DocumentException.class)
     public ResponseEntity<ErrorResponse> handleDocument(DocumentException error) {
