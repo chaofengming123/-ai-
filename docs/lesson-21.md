@@ -225,7 +225,23 @@ Vue 插值把内容作为文本显示，CSS `white-space: pre-wrap` 保留换行
 
 本课自动测试不证明某个真实服务商的账户、余额和模型可用。完成本地配置后的真实对话需要按以上步骤验收。
 
-## 九、理解检查
+## 九、前端启动无报错却卡住：本次 iCloud 排查
+
+本次运行 `npm run dev` 后一直等待，同时旧 Vite 进程虽占用 5173，却不能正常响应页面。直接读取 `frontend/package.json` 也卡住。检查文件标记时，发现 package.json、vite.config.js 等文件带有 `dataless`：文件名和大小仍在磁盘上，但内容等待从云端下载。
+
+启动顺序是 npm 读取 package.json → 找到 dev 脚本 → Vite 读取配置与源码。如果第一步的文件读取被云端下载阻塞，npm 还没执行到编译阶段，因此可能没有 JavaScript 报错。目录存在、文件大小正常，也不代表内容已经保存在本地。
+
+本机通过下面的命令下载项目后，文件的 dataless 标记消失，原先等待的 npm 进程继续启动，不需要重装依赖或修改业务代码：
+
+```sh
+brctl download '/Users/suhang/Documents/Codex/2026-09-20/enterprise-ai-knowledge-platform'
+```
+
+这是本次 macOS 环境下实际使用的命令；也可以在 Finder 中找到项目文件夹，选择“立即下载”，若有“保留下载”选项则开启，以减少开发时再次等待云端文件。不要仅凭“终端没输出”就删除 node_modules 或重新克隆，以免掩盖真正的文件读取问题。
+
+恢复后的 Vite 监听 `localhost:5173`（本机 IPv6 回环地址），请使用终端实际显示的 Local 地址访问。本次用 `http://localhost:5173/`；仅监听 `::1` 时，`http://127.0.0.1:5173/` 不一定可达。
+
+## 十、理解检查
 
 1. 为什么本次 ChatService 可以没有 ChatMapper？
 2. 为什么浏览器的 JWT 和模型的 API Key 不能混用？
