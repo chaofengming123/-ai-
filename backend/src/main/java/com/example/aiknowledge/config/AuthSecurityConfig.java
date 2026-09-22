@@ -49,7 +49,7 @@ public class AuthSecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/chat/config").hasAuthority("chat:send")
-                .requestMatchers(HttpMethod.POST, "/api/chat").hasAuthority("chat:send")
+                .requestMatchers(HttpMethod.POST, "/api/chat", "/api/chat/stream").hasAuthority("chat:send")
                 .requestMatchers("/api/chat", "/api/chat/**").denyAll()
                 .requestMatchers(HttpMethod.GET, "/api/documents").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.GET, "/api/documents/*/download").hasAuthority("document:read")

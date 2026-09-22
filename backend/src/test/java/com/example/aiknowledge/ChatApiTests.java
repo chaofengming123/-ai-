@@ -31,6 +31,10 @@ class ChatApiTests {
     static volatile int status=200;
     static volatile String response;
     static volatile boolean stall;
+    static volatile boolean streaming;
+    static volatile CountDownLatch releaseStream;
+    static final String FIRST="data: {\"choices\":[{\"delta\":{\"content\":\"第一段\"},\"finish_reason\":null}]}\n\n";
+    static final String LAST="data: {\"choices\":[{\"delta\":{\"content\":\"第二段\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n";
     static final String OK="{\"choices\":[{\"message\":{\"content\":\"Controller 接收请求。\"},\"finish_reason\":\"stop\"}]}";
     static {
         try {
@@ -42,9 +46,16 @@ class ChatApiTests {
                 received.set(new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8));
                 byte[] bytes=response.getBytes(StandardCharsets.UTF_8);
                 if(status==302) exchange.getResponseHeaders().set("Location","/chat");
+                if(streaming) exchange.getResponseHeaders().set("Content-Type","text/event-stream");
                 exchange.sendResponseHeaders(status,bytes.length);
                 try {
-                    if(stall) { exchange.getResponseBody().write(bytes,0,1); exchange.getResponseBody().flush(); Thread.sleep(2200); }
+                    if(streaming && releaseStream!=null) {
+                        var release=releaseStream;
+                        int first=FIRST.getBytes(StandardCharsets.UTF_8).length;
+                        exchange.getResponseBody().write(bytes,0,first); exchange.getResponseBody().flush();
+                        release.await(3,TimeUnit.SECONDS);
+                        exchange.getResponseBody().write(bytes,first,bytes.length-first);
+                    } else if(stall) { exchange.getResponseBody().write(bytes,0,1); exchange.getResponseBody().flush(); Thread.sleep(2200); }
                     else exchange.getResponseBody().write(bytes);
                 } catch(InterruptedException e) { Thread.currentThread().interrupt(); }
                 finally { exchange.close(); }
@@ -61,7 +72,7 @@ class ChatApiTests {
         registry.add("app.llm.thinking",()->"disabled");
     }
     @AfterAll static void stop() { upstream.stop(0); workers.shutdownNow(); }
-    @BeforeEach void reset() { status=200; response=OK; calls.set(0); stall=false; }
+    @BeforeEach void reset() { status=200; response=OK; calls.set(0); stall=false; streaming=false; releaseStream=null; }
     @LocalServerPort int port;
     @Autowired UserService users;
     @Autowired LoginService login;
@@ -145,5 +156,62 @@ class ChatApiTests {
         var client=new LlmClient("","","",45,"max_tokens","disabled");
         assertFalse(client.configuration().configured());
         assertEquals(503,assertThrows(ChatException.class,()->client.complete(List.of(new ChatMessage("user","hi")))).status());
+    }
+    @Test void streamDeliversFirstDeltaBeforeProviderFinishes() throws Exception {
+        signIn(); streaming=true; response=FIRST+LAST; releaseStream=new CountDownLatch(1);
+        var release=releaseStream;
+        var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/chat/stream"))
+            .header("Content-Type","application/json").header("Authorization","Bearer "+token)
+            .POST(HttpRequest.BodyPublishers.ofString(question)).build();
+        try {
+            var future=HttpClient.newHttpClient().sendAsync(request,HttpResponse.BodyHandlers.ofInputStream());
+            var result=future.get(900,TimeUnit.MILLISECONDS);
+            assertEquals(200,result.statusCode());
+            try(var reader=new java.io.BufferedReader(new java.io.InputStreamReader(result.body(),StandardCharsets.UTF_8))) {
+                assertEquals("event: delta",reader.readLine());
+                assertTrue(reader.readLine().contains("第一段"));
+                assertEquals(1,release.getCount()); // 上游仍未获准发送尾部，首段却已到浏览器侧。
+                assertTrue(json.readTree(received.get()).get("stream").asBoolean());
+                assertEquals("Bearer test-provider-key",authorization.get());
+                release.countDown();
+                var rest=reader.lines().collect(java.util.stream.Collectors.joining("\n"));
+                assertTrue(rest.contains("第二段")); assertTrue(rest.contains("event: done"));
+                assertFalse(rest.contains("test-provider-key"));
+            }
+        } finally { release.countDown(); }
+    }
+    @Test void brokenStreamReportsErrorInsteadOfSuccessfulDone() throws Exception {
+        signIn(); streaming=true; response=FIRST;
+        var result=request("POST","/api/chat/stream",question,token);
+        assertEquals(200,result.statusCode());
+        assertTrue(result.body().contains("event: delta"));
+        assertTrue(result.body().contains("event: error"));
+        assertFalse(result.body().contains("event: done"));
+        response=FIRST+LAST;
+        assertTrue(request("POST","/api/chat/stream",question,token).body().contains("event: done"));
+    }
+    @Test void streamingAuthenticationValidationAndUpstreamErrorsUseJsonBeforeFirstDelta() throws Exception {
+        assertEquals(401,request("POST","/api/chat/stream",question,null).statusCode());
+        signIn();
+        assertEquals(400,request("POST","/api/chat/stream","{}",token).statusCode());
+        assertEquals(0,calls.get());
+        status=401;
+        var result=request("POST","/api/chat/stream",question,token);
+        assertEquals(502,result.statusCode());
+        assertTrue(result.headers().firstValue("content-type").orElse("").contains("application/json"));
+        jdbc.update("DELETE FROM app_user_role WHERE user_id=?",userId);
+        assertEquals(403,request("POST","/api/chat/stream",question,token).statusCode());
+        assertEquals(1,calls.get());
+    }
+    @Test void streamDeadlineAlsoCoversWaitingAfterFirstDelta() throws Exception {
+        signIn(); streaming=true; response=FIRST+LAST; releaseStream=new CountDownLatch(1);
+        var release=releaseStream;
+        try {
+            var result=request("POST","/api/chat/stream",question,token);
+            assertEquals(200,result.statusCode());
+            assertTrue(result.body().contains("event: error"));
+            assertTrue(result.body().contains("超时"));
+            assertFalse(result.body().contains("event: done"));
+        } finally { release.countDown(); }
     }
 }

@@ -14,6 +14,13 @@ public class ChatService {
     public ChatService(LlmClient model) { this.model=model; }
     public LlmClient.Configuration configuration() { return model.configuration(); }
     public LlmClient.Reply send(long userId,List<ChatMessage> messages) {
+        return execute(userId,messages,model::complete);
+    }
+    public LlmClient.Reply stream(long userId,List<ChatMessage> messages,java.util.function.Consumer<String> delta) {
+        return execute(userId,messages,prompt->model.stream(prompt,delta));
+    }
+    private LlmClient.Reply execute(long userId,List<ChatMessage> messages,
+            java.util.function.Function<List<ChatMessage>,LlmClient.Reply> action) {
         if(messages==null || messages.isEmpty() || messages.size()>11 || messages.size()%2==0)
             throw new ChatException(400,"对话需包含最后一个问题，最多携带最近五轮完整对话。");
         int characters=0;
@@ -34,7 +41,7 @@ public class ChatService {
             var prompt=new ArrayList<ChatMessage>();
             prompt.add(new ChatMessage("system","你是中文学习助手。清楚、准确地回答问题，不确定时说明不确定。当前没有知识库检索能力，不要声称已读取用户上传的文档。"));
             prompt.addAll(messages);
-            return model.complete(prompt);
+            return action.apply(prompt);
         } finally {
             if(acquired) capacity.release();
             activeUsers.remove(userId);
