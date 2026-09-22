@@ -32,6 +32,13 @@ public class EmbeddingClient {
         return text;
     }
     public record Configuration(boolean configured,String model) {}
+    // 地址与模型共同标识向量空间；密钥轮换不应改变已有索引。
+    public String spaceId() {
+        try {
+            return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest((endpoint+"\n"+model).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch(java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
     public Configuration configuration() {
         boolean valid=false;
         try {
@@ -103,7 +110,7 @@ public class EmbeddingClient {
             }
             return List.copyOf(vectors);
     }
-    private static class BoundedBody implements HttpResponse.BodySubscriber<byte[]> {
+    static class BoundedBody implements HttpResponse.BodySubscriber<byte[]> {
         private final CompletableFuture<byte[]> result=new CompletableFuture<>();
         private final ByteArrayOutputStream bytes=new ByteArrayOutputStream();
         private Flow.Subscription subscription;

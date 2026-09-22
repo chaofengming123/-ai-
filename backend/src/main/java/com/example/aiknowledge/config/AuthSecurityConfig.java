@@ -50,6 +50,8 @@ public class AuthSecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/embeddings/config").hasAuthority("chat:send")
                 .requestMatchers(HttpMethod.POST, "/api/embeddings/compare").hasAuthority("chat:send")
+                .requestMatchers(HttpMethod.GET, "/api/embeddings/stored").hasAuthority("chat:send")
+                .requestMatchers(HttpMethod.POST, "/api/embeddings/stored", "/api/embeddings/stored/search").hasAuthority("chat:send")
                 .requestMatchers("/api/embeddings", "/api/embeddings/**").denyAll()
                 .requestMatchers(HttpMethod.GET, "/api/chat/config").hasAuthority("chat:send")
                 .requestMatchers(HttpMethod.POST, "/api/chat", "/api/chat/stream").hasAuthority("chat:send")

@@ -3,6 +3,7 @@ import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { fetchEmbeddingConfiguration, compareEmbeddings } from '../api/embeddings.js'
 import { createEmbeddingExperiment } from '../utils/embeddingExperiment.js'
+import StoredVectorLab from '../components/StoredVectorLab.vue'
 const auth = useAuthStore()
 const canUse = computed(() => auth.user?.permissions?.includes('chat:send'))
 const configuration = ref(null), configError = ref(''), checking = ref(false)
@@ -28,7 +29,7 @@ const numbers = values => values.map(number => number.toFixed(5)).join(', ')
 <template>
   <section class="page" aria-labelledby="embedding-title">
     <div class="page-heading"><div><p class="eyebrow">理解语义检索</p><h1 id="embedding-title">向量实验</h1></div></div>
-    <p class="demo-note">比较一个问题与三段文字的向量相似度。可以粘贴上一课的分块内容；本次不读取其他文档、不保存向量，也不生成聊天回答。</p>
+    <p class="demo-note">先比较一个问题与三段文字的向量相似度。可以粘贴分块内容；需要保存后反复检索时，使用下方的“保存后检索”。本页尚不生成聊天回答。</p>
     <p v-if="!canUse" class="load-error">当前账号没有向量实验权限。</p>
     <template v-else>
       <div class="load-controls"><span v-if="configuration">模型：{{ configuration.model }}</span><button class="secondary-button" :disabled="checking || busy" @click="check">检查配置</button></div>
@@ -50,6 +51,7 @@ const numbers = values => values.map(number => number.toFixed(5)).join(', ')
           <p>{{ match.text }}</p><details><summary>查看向量前 8 个坐标</summary><pre class="document-text-preview">[{{ numbers(match.vectorPreview) }}, …]</pre></details>
         </article>
       </section>
+      <StoredVectorLab :texts="candidates" :configured="configuration?.configured === true" />
     </template>
   </section>
 </template>
