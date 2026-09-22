@@ -83,6 +83,31 @@ class DocumentApiTests {
         return request("POST", "/api/documents", body.toByteArray(), "multipart/form-data; boundary=" + boundary, bearer);
     }
     long fileCount() throws IOException { try (var files = Files.list(directory)) { return files.count(); } }
+    @Test void chunkPreviewValidatesOptionsProtectsAccessAndPreservesSource() throws Exception {
+        byte[] original="分块正文。\n".repeat(200).getBytes(StandardCharsets.UTF_8);
+        var doc=documents.upload(baseId,new MockMultipartFile("file","chunks.md","text/plain",original));
+        String path="/api/documents/"+doc.id()+"/chunks";
+        assertEquals(401,request("GET",path,null,null,null).statusCode());
+        var result=request("GET",path+"?size=300&overlap=50",null,null,token);
+        assertEquals(200,result.statusCode());
+        var data=json.readTree(result.body());
+        assertEquals(300,data.get("chunkSize").asInt());
+        assertTrue(data.get("chunks").size()>1);
+        assertEquals("no-store",result.headers().firstValue("cache-control").orElseThrow());
+        assertEquals(400,request("GET",path+"?size=200&overlap=100",null,null,token).statusCode());
+        assertEquals(400,request("GET",path+"?size=oops",null,null,token).statusCode());
+        assertEquals(404,request("GET","/api/documents/9223372036854775807/chunks",null,null,token).statusCode());
+        assertArrayEquals(original,documents.download(doc.id()).bytes());
+        assertEquals("UPLOADED",documentMapper.findById(doc.id()).status());
+        jdbc.update("DELETE FROM app_user_role WHERE user_id=?",userId);
+        assertEquals(403,request("GET",path,null,null,token).statusCode());
+    }
+    @Test void chunkPreviewExplicitlyReportsTruncatedSource() {
+        var doc=documents.upload(baseId,new MockMultipartFile("file","large.txt","text/plain","字".repeat(40001).getBytes(StandardCharsets.UTF_8)));
+        var result=documents.chunks(doc.id(),500,50);
+        assertTrue(result.sourceTruncated()); assertEquals(40000,result.sourceCharacters());
+        assertEquals(40000,result.chunks().get(result.chunks().size()-1).endOffset());
+    }
     @Test void previewIsAuthenticatedReadOnlyAndReturns404ForMissingDocuments() throws Exception {
         var doc=documents.upload(baseId,new MockMultipartFile("file","note.md","text/plain",text));
         String path="/api/documents/"+doc.id()+"/text";

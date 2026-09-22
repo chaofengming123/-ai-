@@ -54,6 +54,7 @@ public class AuthSecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/documents").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.GET, "/api/documents/*/download").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.GET, "/api/documents/*/text").hasAuthority("document:read")
+                .requestMatchers(HttpMethod.GET, "/api/documents/*/chunks").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.POST, "/api/documents").hasAuthority("document:upload")
                 .requestMatchers("/api/documents", "/api/documents/**").denyAll()
                 .requestMatchers(HttpMethod.GET, "/api/knowledge-bases", "/api/knowledge-bases/**").hasAuthority("knowledge-base:read")

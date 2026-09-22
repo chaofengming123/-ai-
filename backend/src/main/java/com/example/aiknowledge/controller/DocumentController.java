@@ -30,6 +30,11 @@ public class DocumentController {
     public ResponseEntity<DocumentService.Preview> text(@PathVariable long id) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(documents.preview(id));
     }
+    @GetMapping("/{id}/chunks")
+    public ResponseEntity<DocumentService.ChunkPreview> chunks(@PathVariable long id,
+            @RequestParam(defaultValue="500") int size,@RequestParam(defaultValue="50") int overlap) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(documents.chunks(id,size,overlap));
+    }
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentInfo> upload(@RequestParam long knowledgeBaseId,
                                                @RequestParam MultipartFile file) {

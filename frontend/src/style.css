@@ -167,3 +167,8 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
 .chat-form > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 @media (max-width: 650px) { .document-list li { align-items: flex-start; flex-direction: column; } }
 .document-text-preview { max-height: 480px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; font: inherit; line-height: 1.7; }
+.chunk-panel { margin-top: 24px; padding: 24px; border: 1px solid #d5e2dc; border-radius: 12px; background: white; }
+.chunk-panel input { width: 100px; padding: 8px; border: 1px solid #b8cbc3; border-radius: 6px; }
+.chunk-item { margin-top: 12px; border-top: 1px solid #e1e9e5; padding-top: 12px; }
+.chunk-item summary { cursor: pointer; font-weight: 600; }
+.chunk-item mark { background: #fff0b2; color: inherit; }

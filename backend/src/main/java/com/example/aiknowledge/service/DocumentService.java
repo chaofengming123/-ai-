@@ -28,6 +28,14 @@ public class DocumentService {
     }
     public record Download(String name, byte[] bytes) {}
     public record Preview(long documentId,String fileName,String content,boolean truncated,String note) {}
+    public record ChunkPreview(long documentId,String fileName,int chunkSize,int overlap,int sourceCharacters,
+            boolean sourceTruncated,String note,List<TextChunker.Chunk> chunks) {}
+    public ChunkPreview chunks(long id,int size,int overlap) {
+        TextChunker.validate(size,overlap);
+        var source=preview(id);
+        return new ChunkPreview(id,source.fileName(),size,overlap,source.content().length(),source.truncated(),
+            source.note(),TextChunker.split(source.content(),size,overlap));
+    }
     public Preview preview(long id) {
         if(!previews.tryAcquire()) throw new DocumentException(BUSY,"当前正文预览请求较多，请稍后再试。");
         try {

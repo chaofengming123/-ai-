@@ -17,3 +17,6 @@ export async function downloadDocument(id) {
 export async function fetchDocumentText(id, signal) {
   return (await http.get(`/documents/${id}/text`, { signal, timeout: 30000 })).data
 }
+export async function fetchDocumentChunks(id, size, overlap, signal) {
+  return (await http.get(`/documents/${id}/chunks`, { params: { size, overlap }, signal, timeout: 30000 })).data
+}
