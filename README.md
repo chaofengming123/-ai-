@@ -87,9 +87,9 @@ scripts/backend.sh spring-boot:run
 
 - [第 20 课：PDF、DOCX 上传与格式校验](docs/lesson-20.md)
 
-- [第 21 课：基础 LLM Chat，接入 DeepSeek](docs/lesson-21.md)
+- [第 21 课：基础 LLM Chat，接入 GLM-4.7-Flash](docs/lesson-21.md)
 
-AI 问答已接入后端非流式模型接口，默认使用 DeepSeek `deepseek-flash` 普通对话模式。将 `LLM_API_KEY` 加入本地 `docker/.env`，然后重启后端并重新登录即可试用；完整配置示例见 `docker/.env.llm.example` 与第二十一课。密钥不能写进前端或提交到 Git。未配置时页面显示提示；当前对话不读取知识库文件，离开页面后清空记录。模型自动测试使用本地模拟服务，真实账户需配置后验收。
+AI 问答已接入后端非流式模型接口，默认使用智谱免费模型 `glm-4.7-flash` 普通对话模式。将智谱 API Key 填入本地 `docker/.env` 的 `LLM_API_KEY`，然后重启后端并重新登录即可试用；完整配置示例见 `docker/.env.llm.example` 与第二十一课。如果之前配置过其他服务商，还需替换旧的 `LLM_ENDPOINT`、`LLM_MODEL` 和密钥。密钥不能写进前端或提交到 Git。未配置时页面显示提示；当前对话不读取知识库文件，离开页面后清空记录。模型自动测试使用本地模拟服务，真实账户需配置后验收。
 
 ## Git 约定
 

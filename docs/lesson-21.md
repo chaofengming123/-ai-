@@ -31,25 +31,27 @@ Vue 输入问题
 
 ## 二、本地配置与启动
 
-本课按你选择的 DeepSeek 配置 Chat Completions 接口，默认使用 `deepseek-flash`，关闭思考模式，先学习普通文本对话。你需要有 DeepSeek API 账户和可用的 API Key；仅启动 MySQL 或 MinIO 不会得到模型能力。模型名依据本课编写时的 [DeepSeek 官方接口文档](https://api-docs.deepseek.com/api/create-chat-completion/)，以后以账户和官方文档为准。
+本课按你的最新选择，使用智谱开放平台的免费模型 `glm-4.7-flash`，关闭思考模式，先学习普通文本对话。[智谱官方公告](https://www.zhipuai.cn/zh/news/148)说明该模型供免费调用。免费模型仍需要智谱 API 账户和可用的 API Key，调用限制以平台账户为准；仅启动 MySQL 或 MinIO 不会得到模型能力。接口格式见 [智谱对话补全文档](https://docs.bigmodel.cn/api-reference/模型-api/对话补全)。
 
 打开被 Git 忽略的 `docker/.env`，在原有内容后追加以下配置，并把空值填好。参考文件为 `docker/.env.llm.example`，不要在这个会提交的示例文件中写真实密钥。
 
 ```sh
-LLM_ENDPOINT='https://api.deepseek.com/chat/completions'
+LLM_ENDPOINT='https://open.bigmodel.cn/api/paas/v4/chat/completions'
 LLM_API_KEY=''
-LLM_MODEL='deepseek-flash'
+LLM_MODEL='glm-4.7-flash'
 LLM_TOKEN_PARAMETER='max_tokens'
 LLM_THINKING='disabled'
 ```
 
 - `LLM_ENDPOINT`：完整模型接口 URL，需要包括 `/chat/completions`，不能只写网站首页。远程服务要求 HTTPS，本机测试允许 localhost 的 HTTP。
-- `LLM_API_KEY`：只填密钥本身，不加 `Bearer `；Java 代码负责加前缀。
+- `LLM_API_KEY`：填智谱开放平台的密钥本身，不加 `Bearer `；Java 代码负责加前缀。其他服务商的密钥不能混用。
 - `LLM_MODEL`：服务商提供的模型标识，不是自己起的显示名称。
 - `LLM_TOKEN_PARAMETER`：本客户端允许 `max_tokens` 或 `max_completion_tokens`，按所选服务商、模型文档配置。
-- `LLM_THINKING`：本课为 `disabled`，发送 `thinking: {type: "disabled"}`，关闭 DeepSeek 思考模式。不要把它和控制流式输出的 `stream` 混淆。
+- `LLM_THINKING`：本课为 `disabled`，发送 `thinking: {type: "disabled"}`，关闭模型思考模式。不要把它和控制流式输出的 `stream` 混淆。
 
-后端已将上述地址、模型和参数作为默认值，因此你也可以只追加 `LLM_API_KEY='你的真实密钥'`。目前没有填入密钥或验证真实账户。若将来换服务商，需要同时核对地址、模型和参数；不支持 thinking 参数的接口应将 `LLM_THINKING` 设为空字符串。
+后端已将上述地址、模型和参数作为默认值。如果本地没有旧模型配置，只需追加 `LLM_API_KEY='你的智谱密钥'`。如果此前填过 DeepSeek 配置，必须将旧 `LLM_ENDPOINT`、`LLM_MODEL`、`LLM_API_KEY` 替换为智谱对应值，不要保留重复配置；环境变量会覆盖代码默认值。IDEA 运行配置中的旧值也要同步替换。目前没有填入密钥或验证真实账户。若将来换服务商，需要同时核对地址、模型和参数；不支持 thinking 参数的接口应将 `LLM_THINKING` 设为空字符串。
+
+切换模型时，`application.properties` 的默认值和环境变量决定 `LlmClient` 构造器拿到的 `endpoint`、`model`、`key`：endpoint 决定 HTTP 请求发往哪里，model 写进请求 JSON，key 写进 Authorization 请求头。智谱使用当前客户端支持的消息与返回格式，因此这次无需改 Controller、Service 或 Vue 的对话流程。
 
 在项目根目录运行：
 
@@ -146,7 +148,7 @@ if (!thinking.isBlank()) body.put("thinking", Map.of("type", thinking));
 
 Token 是模型处理文本的片段单位，字符数量和 token 数量没有固定的一一对应关系。本课的 12000 字符是应用层输入限制，不是精确的模型 token 计数，也不保证适合所有模型的上下文窗口。
 
-常见参数 `temperature` 用于调节采样随机性，但支持范围、作用随模型而异。本课没有发送它，保留服务商默认值。例如 DeepSeek 的思考模式文档说明某些采样参数在该模式下不生效，见 [官方说明](https://api-docs.deepseek.com/guides/thinking_mode/)。不要把它当作“准确率开关”。
+常见参数 `temperature` 用于调节采样随机性，但支持范围、作用随模型而异。本课没有发送它，保留服务商默认值。智谱接口还提供 `do_sample` 控制是否采样，关闭采样时会忽略 temperature；具体见 [官方接口说明](https://docs.bigmodel.cn/api-reference/模型-api/对话补全)。不要把 temperature 当作“准确率开关”。
 
 ```java
 .header("Authorization", "Bearer " + key)
