@@ -43,11 +43,14 @@ public class AuthSecurityConfig {
             response.getWriter().write("{\"message\":\"当前账号没有执行此操作的权限，请联系管理员。\"}");
         };
         // 角色以数据库当前值为准，JWT 只证明身份。
-        http.securityMatcher("/api/auth/**", "/api/knowledge-bases", "/api/knowledge-bases/**", "/api/documents", "/api/documents/**", "/api/chat", "/api/chat/**")
+        http.securityMatcher("/api/auth/**", "/api/knowledge-bases", "/api/knowledge-bases/**", "/api/documents", "/api/documents/**", "/api/chat", "/api/chat/**", "/api/embeddings", "/api/embeddings/**")
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/embeddings/config").hasAuthority("chat:send")
+                .requestMatchers(HttpMethod.POST, "/api/embeddings/compare").hasAuthority("chat:send")
+                .requestMatchers("/api/embeddings", "/api/embeddings/**").denyAll()
                 .requestMatchers(HttpMethod.GET, "/api/chat/config").hasAuthority("chat:send")
                 .requestMatchers(HttpMethod.POST, "/api/chat", "/api/chat/stream").hasAuthority("chat:send")
                 .requestMatchers("/api/chat", "/api/chat/**").denyAll()

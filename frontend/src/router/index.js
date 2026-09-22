@@ -3,6 +3,7 @@ import DashboardView from '../views/DashboardView.vue'
 import KnowledgeBaseView from '../views/KnowledgeBaseView.vue'
 import DocumentView from '../views/DocumentView.vue'
 import ChatView from '../views/ChatView.vue'
+import EmbeddingView from '../views/EmbeddingView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
@@ -20,6 +21,7 @@ const router = createRouter({
     { path: '/login', component: LoginView, meta: { title: '登录' } },
     { path: '/register', component: RegisterView, meta: { title: '创建账号' } },
     { path: '/chat', component: ChatView, meta: { title: 'AI 问答', requiresAuth: true } },
+    { path: '/embeddings', component: EmbeddingView, meta: { title: '向量实验', requiresAuth: true } },
     { path: '/:pathMatch(.*)*', component: NotFoundView, meta: { title: '页面不存在' } },
   ],
   scrollBehavior() {
