@@ -14,3 +14,6 @@ export async function uploadDocument(knowledgeBaseId, file) {
 export async function downloadDocument(id) {
   return (await http.get(`/documents/${id}/download`, { responseType: 'blob', timeout: 30000 })).data
 }
+export async function fetchDocumentText(id, signal) {
+  return (await http.get(`/documents/${id}/text`, { signal, timeout: 30000 })).data
+}

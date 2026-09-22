@@ -83,6 +83,20 @@ class DocumentApiTests {
         return request("POST", "/api/documents", body.toByteArray(), "multipart/form-data; boundary=" + boundary, bearer);
     }
     long fileCount() throws IOException { try (var files = Files.list(directory)) { return files.count(); } }
+    @Test void previewIsAuthenticatedReadOnlyAndReturns404ForMissingDocuments() throws Exception {
+        var doc=documents.upload(baseId,new MockMultipartFile("file","note.md","text/plain",text));
+        String path="/api/documents/"+doc.id()+"/text";
+        assertEquals(401,request("GET",path,null,null,null).statusCode());
+        var result=request("GET",path,null,null,token);
+        assertEquals(200,result.statusCode());
+        assertEquals(new String(text,StandardCharsets.UTF_8),json.readTree(result.body()).get("content").asText());
+        assertEquals("no-store",result.headers().firstValue("cache-control").orElseThrow());
+        assertArrayEquals(text,documents.download(doc.id()).bytes());
+        assertEquals("UPLOADED",documentMapper.findById(doc.id()).status());
+        assertEquals(404,request("GET","/api/documents/9223372036854775807/text",null,null,token).statusCode());
+        jdbc.update("DELETE FROM app_user_role WHERE user_id=?",userId);
+        assertEquals(403,request("GET",path,null,null,token).statusCode());
+    }
 
     @Test void uploadPreservesBytesListsByBaseAndCountsRealDocuments() throws Exception {
         long firstId = 0;

@@ -21,6 +21,7 @@ public class ApiExceptionHandler {
             case INVALID_INPUT -> HttpStatus.BAD_REQUEST;
             case TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE;
             case STORAGE_FAILURE -> HttpStatus.INTERNAL_SERVER_ERROR;
+            case BUSY -> HttpStatus.SERVICE_UNAVAILABLE;
         };
         return ResponseEntity.status(status).body(new ErrorResponse(error.getMessage()));
     }

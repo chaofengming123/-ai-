@@ -26,6 +26,10 @@ public class DocumentController {
                         .filename(file.name(),java.nio.charset.StandardCharsets.UTF_8).build().toString())
                 .body(file.bytes());
     }
+    @GetMapping("/{id}/text")
+    public ResponseEntity<DocumentService.Preview> text(@PathVariable long id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(documents.preview(id));
+    }
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentInfo> upload(@RequestParam long knowledgeBaseId,
                                                @RequestParam MultipartFile file) {

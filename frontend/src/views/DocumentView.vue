@@ -2,10 +2,12 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { useKnowledgeBaseStore } from '../stores/knowledgeBases.js'
-import { fetchDocuments, uploadDocument, downloadDocument } from '../api/documents.js'
+import { fetchDocuments, uploadDocument, downloadDocument, fetchDocumentText } from '../api/documents.js'
+import { createDocumentPreview } from '../utils/documentPreview.js'
 import { validateDocument, formatFileSize } from '../utils/documents.js'
 
 const auth = useAuthStore()
+const { preview, previewingId, previewError, closePreview, showPreview } = createDocumentPreview(fetchDocumentText, () => auth.sessionVersion)
 const bases = useKnowledgeBaseStore()
 const canRead = computed(() => auth.user?.permissions?.includes('document:read'))
 const canUpload = computed(() => auth.user?.permissions?.includes('document:upload'))
@@ -25,6 +27,7 @@ let requestId = 0
 let controller
 
 async function load() {
+  closePreview()
   controller?.abort()
   const currentRequest = ++requestId
   const version = auth.sessionVersion
@@ -62,7 +65,7 @@ watch(selectedId, () => {
   void load()
 })
 onMounted(loadBases)
-onBeforeUnmount(() => { active = false; requestId++; controller?.abort() })
+onBeforeUnmount(() => { active = false; requestId++; controller?.abort(); closePreview() })
 
 async function download(item) {
   if (downloadingId.value !== null || !canRead.value) return
@@ -124,7 +127,7 @@ async function submit() {
     <div class="page-heading">
       <div><p class="eyebrow">团队知识空间</p><h1 id="documents-title">文档管理</h1></div>
     </div>
-    <p class="demo-note">支持 TXT、Markdown、PDF 和 DOCX，每个文件不超过 1 MB。文本文件需为 UTF-8；PDF 需未加密且不超过 500 页。上传后可下载原文件，尚未提取正文或用于 AI 问答。</p>
+    <p class="demo-note">支持 TXT、Markdown、PDF 和 DOCX，每个文件不超过 1 MB。上传后可下载原文件或查看正文预览，尚未用于 AI 问答。预览最多 40000 字符；PDF 只读取前 20 页的文本层，不识别扫描图片。</p>
     <div v-if="bases.loadError" class="load-error" role="alert">
       <p>{{ bases.loadError }}</p><button class="secondary-button" @click="loadBases">重新加载知识库</button>
     </div>
@@ -155,9 +158,22 @@ async function submit() {
         <div><strong>{{ item.fileName }}</strong><small>{{ item.fileType.toUpperCase() }} · {{ formatFileSize(item.fileSize) }} · {{ item.createdAt.replace('T', ' ') }}</small></div>
         <div class="document-actions">
           <span class="demo-badge">{{ item.status === 'UPLOADED' ? '已上传' : item.status }}</span>
+          <button v-if="canRead" type="button" class="secondary-button" :disabled="previewingId === item.id" @click="showPreview(item)">{{ previewingId === item.id ? '正在提取……' : '查看正文' }}</button>
           <button v-if="canRead" type="button" class="secondary-button" :disabled="downloadingId !== null" :aria-label="`下载 ${item.fileName}`" @click="download(item)">{{ downloadingId === item.id ? '正在下载……' : '下载原文件' }}</button>
         </div>
       </li>
     </ul>
+    <section v-if="preview || previewError || previewingId !== null" class="empty-panel" aria-label="文档正文预览">
+      <button type="button" class="secondary-button" @click="closePreview">关闭预览</button>
+      <p v-if="previewingId !== null" role="status">正在读取文件并提取正文……</p>
+      <p v-if="previewError" class="load-error" role="alert">{{ previewError }}</p>
+      <template v-if="preview">
+        <h2>{{ preview.fileName }}</h2>
+        <p>{{ preview.note }}</p>
+        <p>{{ preview.content.length }} 字符<span v-if="preview.truncated"> · 部分预览</span></p>
+        <pre v-if="preview.content" class="document-text-preview">{{ preview.content }}</pre>
+        <p v-else>未提取到可显示的文字。</p>
+      </template>
+    </section>
   </section>
 </template>

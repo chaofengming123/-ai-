@@ -17,6 +17,7 @@ public class DocumentService {
     private final DocumentMapper documents;
     private final KnowledgeBaseMapper bases;
     private final DocumentStorage storage;
+    private final java.util.concurrent.Semaphore previews=new java.util.concurrent.Semaphore(2);
     public DocumentService(DocumentMapper documents, KnowledgeBaseMapper bases, DocumentStorage storage) {
         this.documents = documents; this.bases = bases; this.storage = storage;
     }
@@ -26,6 +27,15 @@ public class DocumentService {
         return documents.list(baseId);
     }
     public record Download(String name, byte[] bytes) {}
+    public record Preview(long documentId,String fileName,String content,boolean truncated,String note) {}
+    public Preview preview(long id) {
+        if(!previews.tryAcquire()) throw new DocumentException(BUSY,"当前正文预览请求较多，请稍后再试。");
+        try {
+            var file=download(id);
+            var text=DocumentTextExtractor.extract(file.name(),file.bytes());
+            return new Preview(id,file.name(),text.content(),text.truncated(),text.note());
+        } finally { previews.release(); }
+    }
     public Download download(long id) {
         var info=documents.findById(id);
         if (info==null) throw new KnowledgeBaseException(KnowledgeBaseException.Kind.NOT_FOUND,"文档不存在。");

@@ -58,7 +58,7 @@ public final class DocumentFormatValidator {
             throw invalid("PDF 结构无法读取，请重新导出文件后上传。");
         }
     }
-    private static void docx(byte[] bytes) {
+    static Element docx(byte[] bytes) {
         Path temporary=null;
         try {
             // ZipFile 检查 ZIP 中央目录；这里只暂存压缩包，不解压到用户路径。
@@ -114,6 +114,7 @@ public final class DocumentFormatValidator {
             }
             if(!main || !linked || document.getElementsByTagNameNS(document.getNamespaceURI(),"body").getLength()!=1)
                 throw invalid("DOCX 主文档声明、关系或正文结构不完整。");
+            return document;
         } catch(DocumentException error) { throw error; }
         catch(Exception error) { throw invalid("DOCX 结构无法读取，请用 Word 重新保存为 .docx 后上传。"); }
         finally {

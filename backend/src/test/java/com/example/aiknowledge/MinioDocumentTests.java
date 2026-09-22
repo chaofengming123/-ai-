@@ -59,6 +59,15 @@ class MinioDocumentTests {
     String token;
     final byte[] content="# MinIO 笔记\n保存原始内容".getBytes(StandardCharsets.UTF_8);
     MockMultipartFile file() { return new MockMultipartFile("file","notes.md","text/markdown",content); }
+    @Test void previewReadsPrivateMinioObjectWithoutChangingIt() throws Exception {
+        byte[] original=DocumentFixtures.docx();
+        var info=documents.upload(baseId,new MockMultipartFile("file","preview.docx","application/octet-stream",original));
+        var preview=documents.preview(info.id());
+        assertTrue(preview.content().contains("第二十课：原文件保持不变。"));
+        assertFalse(preview.truncated());
+        assertArrayEquals(original,documents.download(info.id()).bytes());
+        assertEquals("UPLOADED",mapper.findById(info.id()).status());
+    }
 
     @BeforeEach void setup() {
         String name="minio_"+UUID.randomUUID().toString().substring(0,8);
