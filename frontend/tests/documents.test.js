@@ -7,7 +7,10 @@ import { http } from '../src/api/http.js'
 test('upload validation handles missing, empty, wrong-extension and oversized files', () => {
   assert.ok(validateDocument(null))
   assert.ok(validateDocument({ name: 'a.txt', size: 0 }))
-  assert.ok(validateDocument({ name: 'a.pdf', size: 2 }))
+  assert.ok(validateDocument({ name: 'a.docm', size: 2 }))
+  assert.ok(validateDocument({ name: 'a.doc', size: 2 }))
+  assert.equal(validateDocument({ name: 'a.PDF', size: 2 }), '')
+  assert.equal(validateDocument({ name: 'a.docx', size: 2 }), '')
   assert.ok(validateDocument({ name: 'a.md', size: MAX_DOCUMENT_BYTES + 1 }))
   assert.equal(validateDocument({ name: 'a.MD', size: MAX_DOCUMENT_BYTES }), '')
 })

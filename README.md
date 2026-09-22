@@ -2,7 +2,7 @@
 
 从零逐步实现 Vue 3 + Spring Boot 企业知识管理与 RAG 问答系统。
 
-当前第 19 课：已实现知识库 CRUD、登录、角色权限、TXT / Markdown 文档上传和原文件下载。MySQL 保存元数据，新文件进入 MinIO；支持保留本地副本的旧文件迁移。尚未实现 PDF / DOCX、文档解析或 AI 问答。
+当前第 20 课：已实现知识库 CRUD、登录、角色权限、TXT / Markdown / PDF / DOCX 上传和原文件下载。MySQL 保存元数据，新文件进入 MinIO；支持保留本地副本的旧文件迁移。PDF / DOCX 在保存前执行格式检查，尚未实现正文提取或 AI 问答。
 
 ## 启动前端
 
@@ -28,7 +28,7 @@ scripts/backend.sh spring-boot:run
 
 `GET /api/health` 仍是基础服务存活检查，不检查数据库健康。
 
-只启动一份后端，避免与 IDEA 抢占 8080。更新代码后需要重启后端，以应用新增迁移和接口。文档入口为 `/documents`，支持单个最多 1 MB 的 UTF-8 `.txt` / `.md` 文件及下载。MinIO API 为本机 9000，控制台为 9001；首次从固定源码版本构建可能需要数分钟。IDEA 启动需补充 docker/.env 中新增的 MINIO_ROOT_USER / MINIO_ROOT_PASSWORD 环境变量。
+只启动一份后端，避免与 IDEA 抢占 8080。更新代码后需要重启后端，以应用新增迁移和接口。文档入口为 `/documents`，支持单个最多 1 MB 的 TXT / Markdown / PDF / DOCX 文件及下载。文本需为 UTF-8，PDF 需未加密且不超过 500 页；DOCX 的结构及解压限制见第二十课。MinIO API 为本机 9000，控制台为 9001；首次从固定源码版本构建可能需要数分钟。IDEA 启动需补充 docker/.env 中新增的 MINIO_ROOT_USER / MINIO_ROOT_PASSWORD 环境变量。
 
 旧文件默认位于 `backend/uploads/documents`，可用 `DOCUMENT_STORAGE_DIR` 指定原目录绝对路径。运行 `scripts/migrate-documents.sh preview` 预览，再用 `scripts/migrate-documents.sh apply` 迁移；复制校验后切换记录，保留本地备份。原文件与密钥不提交到 Git。含文档的知识库暂不允许删除。MinIO 社区发行状态、构建及详细配置见第十九课。
 
@@ -84,6 +84,8 @@ scripts/backend.sh spring-boot:run
 - [第 18 课：第一个文档上传闭环](docs/lesson-18.md)
 
 - [第 19 课：MinIO 对象存储与原文件下载](docs/lesson-19.md)
+
+- [第 20 课：PDF、DOCX 上传与格式校验](docs/lesson-20.md)
 
 ## Git 约定
 

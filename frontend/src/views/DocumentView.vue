@@ -124,7 +124,7 @@ async function submit() {
     <div class="page-heading">
       <div><p class="eyebrow">团队知识空间</p><h1 id="documents-title">文档管理</h1></div>
     </div>
-    <p class="demo-note">上传 UTF-8 编码的 TXT 或 Markdown 文件，每个文件不超过 1 MB。文件目前仅保存，尚未解析或用于 AI 问答。</p>
+    <p class="demo-note">支持 TXT、Markdown、PDF 和 DOCX，每个文件不超过 1 MB。文本文件需为 UTF-8；PDF 需未加密且不超过 500 页。上传后可下载原文件，尚未提取正文或用于 AI 问答。</p>
     <div v-if="bases.loadError" class="load-error" role="alert">
       <p>{{ bases.loadError }}</p><button class="secondary-button" @click="loadBases">重新加载知识库</button>
     </div>
@@ -139,7 +139,7 @@ async function submit() {
     </div>
     <form v-if="canUpload && selectedId" class="document-upload" @submit.prevent="submit">
       <label for="document-file">选择文档</label>
-      <input id="document-file" ref="fileInput" type="file" accept=".txt,.md" :disabled="uploading" @change="file = $event.target.files[0] ?? null; uploadError = ''; notice = ''">
+      <input id="document-file" ref="fileInput" type="file" accept=".txt,.md,.pdf,.docx" :disabled="uploading" @change="file = $event.target.files[0] ?? null; uploadError = ''; notice = ''">
       <button type="submit" class="primary-button" :disabled="uploading || loading">{{ uploading ? '正在上传……' : '上传文档' }}</button>
     </form>
     <p v-else-if="selectedId" class="demo-note">当前账号没有上传权限，可联系管理员分配编辑者角色。</p>

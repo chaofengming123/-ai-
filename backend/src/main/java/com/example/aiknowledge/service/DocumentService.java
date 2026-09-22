@@ -1,8 +1,6 @@
 package com.example.aiknowledge.service;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.*;
 import java.util.*;
 import com.example.aiknowledge.mapper.*;
 import com.example.aiknowledge.model.DocumentInfo;
@@ -43,8 +41,8 @@ public class DocumentService {
                 || name.chars().anyMatch(Character::isISOControl))
             throw new DocumentException(INVALID_INPUT, "文件名需为 1–180 个字符，不能包含路径或控制字符。");
         String type = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
-        if (!name.contains(".") || !Set.of("txt", "md").contains(type))
-            throw new DocumentException(INVALID_INPUT, "本课只支持 UTF-8 编码的 .txt 或 .md 文件。");
+        if (!name.contains(".") || !Set.of("txt", "md", "pdf", "docx").contains(type))
+            throw new DocumentException(INVALID_INPUT, "请选择 .txt、.md、.pdf 或 .docx 文件。");
         byte[] bytes;
         try (var input = file.getInputStream()) {
             bytes = input.readNBytes(MAX_BYTES + 1);
@@ -53,13 +51,7 @@ public class DocumentService {
         }
         if (bytes.length == 0) throw new DocumentException(INVALID_INPUT, "不能上传空文件。");
         if (bytes.length > MAX_BYTES) throw new DocumentException(TOO_LARGE, "文件不能超过 1 MB。");
-        try {
-            String text = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString();
-            if (text.indexOf('\0') >= 0) throw new CharacterCodingException();
-        } catch (CharacterCodingException error) {
-            throw new DocumentException(INVALID_INPUT, "文件必须是 UTF-8 文本，不能是改后缀的二进制文件。");
-        }
+        DocumentFormatValidator.validate(type,bytes);
         // 锁住知识库，使上传与删除不会同时跨过存在性检查。
         if (bases.findForUpdate(baseId) == null)
             throw new KnowledgeBaseException(KnowledgeBaseException.Kind.NOT_FOUND, "知识库不存在。");

@@ -138,6 +138,19 @@ class MinioDocumentTests {
             assertTrue(documents.list(baseId).isEmpty()); assertEquals(0,objectCount());
         } finally { unavailable.stop(0); }
     }
+
+    @Test void pdfAndDocxKeepOriginalBytesInMinio() throws Exception {
+        for(String type:List.of("pdf","docx")) {
+            byte[] bytes=type.equals("pdf")?DocumentFixtures.pdf(1,false):DocumentFixtures.docx();
+            var info=documents.upload(baseId,new MockMultipartFile("file","lesson."+type,"application/octet-stream",bytes));
+            assertEquals(type,info.fileType());
+            assertEquals("MINIO",mapper.object(info.id()).storageBackend());
+            assertArrayEquals(bytes,documents.download(info.id()).bytes());
+        }
+        assertEquals(2,objectCount());
+        assertThrows(DocumentException.class,()->documents.upload(baseId,new MockMultipartFile("file","fake.docx","application/vnd.openxmlformats-officedocument.wordprocessingml.document",content)));
+        assertEquals(2,objectCount()); assertEquals(2,documents.list(baseId).size());
+    }
     @Test void migrationPreviewAndApplyKeepIdentityAndLocalBackupAndAreRepeatable() throws Exception {
         var old=legacy(); var location=mapper.object(old.id()).location();
         assertTrue(migration.migrate(old.id(),false));

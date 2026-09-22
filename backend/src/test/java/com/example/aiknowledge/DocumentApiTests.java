@@ -140,12 +140,28 @@ class DocumentApiTests {
     @Test void invalidFilesAndMissingFieldsLeaveNoMetadataOrFiles() throws Exception {
         assertEquals(400,upload(baseId,"empty.txt",new byte[0],token).statusCode());
         assertEquals(400,upload(baseId,"wrong.pdf",text,token).statusCode());
+        assertEquals(400,upload(baseId,"wrong.docx",text,token).statusCode());
+        assertEquals(400,upload(baseId,"encrypted.pdf",DocumentFixtures.pdf(1,true),token).statusCode());
         assertEquals(400,upload(baseId,"binary.txt",new byte[]{0,1,2},token).statusCode());
         assertEquals(400,upload(baseId,"invalid.txt",new byte[]{(byte)0xff},token).statusCode());
         assertEquals(400,upload(baseId,"../escape.txt",text,token).statusCode());
         assertEquals(400,request("GET","/api/documents",null,null,token).statusCode());
         assertEquals(400,request("POST","/api/documents",("--b\r\nContent-Disposition: form-data; name=\"knowledgeBaseId\"\r\n\r\n"+baseId+"\r\n--b--\r\n").getBytes(StandardCharsets.UTF_8),"multipart/form-data; boundary=b",token).statusCode());
         assertEquals(0,fileCount()); assertTrue(documents.list(baseId).isEmpty());
+    }
+
+    @Test void binaryFormatsUploadAndDownloadByteForByte() throws Exception {
+        for(String type:List.of("pdf","docx")) {
+            byte[] bytes=type.equals("pdf")?DocumentFixtures.pdf(1,false):DocumentFixtures.docx();
+            var response=upload(baseId,"lesson."+type.toUpperCase(Locale.ROOT),bytes,token);
+            assertEquals(201,response.statusCode(),response.body());
+            var info=json.readTree(response.body());
+            assertEquals(type,info.get("fileType").asText());
+            assertEquals("UPLOADED",info.get("status").asText());
+            var downloaded=HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/documents/"+info.get("id").asLong()+"/download"))
+                    .header("Authorization","Bearer "+token).GET().build(),HttpResponse.BodyHandlers.ofByteArray());
+            assertEquals(200,downloaded.statusCode()); assertArrayEquals(bytes,downloaded.body());
+        }
     }
 
     @Test void sizeBoundaryIsEnforcedAndMissingBaseCreatesNoFile() throws Exception {
