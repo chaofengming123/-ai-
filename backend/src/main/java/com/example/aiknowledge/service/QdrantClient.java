@@ -43,6 +43,7 @@ public class QdrantClient {
         catch(Exception e) { throw new ChatException(503,"无法完成 Qdrant 请求，请确认本机 Qdrant 已启动。"); }
     }
     public JsonNode info(String collection) { return call("GET","/collections/"+collection,null,true); }
+    public void remove(String collection) { call("DELETE","/collections/"+collection,null,true); }
     public void ensure(String collection,int dimensions) {
         var info=info(collection);
         if(info==null) {

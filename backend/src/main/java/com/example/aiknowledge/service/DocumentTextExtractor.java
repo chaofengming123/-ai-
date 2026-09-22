@@ -14,10 +14,16 @@ public final class DocumentTextExtractor {
     private DocumentTextExtractor() {}
     public record Text(String content,boolean truncated,String note) {}
     public static Text extract(String name,byte[] bytes) {
+        return extract(name,bytes,MAX_CHARACTERS,MAX_PDF_PAGES,false);
+    }
+    public static Text forIndex(String name,byte[] bytes) {
+        return extract(name,bytes,4000,50,true);
+    }
+    private static Text extract(String name,byte[] bytes,int characters,int pages,boolean strict) {
         String type=name.substring(name.lastIndexOf('.')+1).toLowerCase(Locale.ROOT);
         if(bytes.length==0 || bytes.length>DocumentService.MAX_BYTES)
             throw new DocumentException(DocumentException.Kind.INVALID_INPUT,"文件大小不符合正文预览限制。");
-        var output=new PreviewWriter();
+        var output=new PreviewWriter(characters);
         boolean pageLimited=false;
         try {
             if(type.equals("docx")) {
@@ -29,15 +35,19 @@ public final class DocumentTextExtractor {
                 DocumentFormatValidator.validate(type,bytes);
                 if(type.equals("pdf")) {
                     try(var pdf=Loader.loadPDF(bytes)) {
-                        pageLimited=pdf.getNumberOfPages()>MAX_PDF_PAGES;
+                        pageLimited=pdf.getNumberOfPages()>pages;
+                        if(strict && pageLimited) throw new DocumentException(DocumentException.Kind.INVALID_INPUT,"本课索引仅支持不超过 50 页的 PDF，请拆分文件后重试。");
                         var stripper=new PDFTextStripper();
                         stripper.setSortByPosition(true);
-                        stripper.setStartPage(1); stripper.setEndPage(MAX_PDF_PAGES);
+                        stripper.setStartPage(1); stripper.setEndPage(pages);
                         stripper.writeText(pdf,output);
                     }
                 } else output.write(new String(bytes,StandardCharsets.UTF_8));
             }
-        } catch(PreviewLimit reached) { output.truncated=true; }
+        } catch(PreviewLimit reached) {
+            if(strict) throw new DocumentException(DocumentException.Kind.INVALID_INPUT,"正文超过本课索引的 4000 字符上限，请拆分文件；未保存部分索引。");
+            output.truncated=true;
+        }
         catch(DocumentException error) { throw error; }
         catch(Exception error) {
             throw new DocumentException(DocumentException.Kind.INVALID_INPUT,"无法提取正文，请重新导出文件后再试。");
@@ -73,9 +83,11 @@ public final class DocumentTextExtractor {
     private static class PreviewLimit extends IOException {}
     private static class PreviewWriter extends Writer {
         final StringBuilder value=new StringBuilder();
+        final int limit;
+        PreviewWriter(int limit) { this.limit=limit; }
         boolean truncated;
         @Override public void write(char[] chars,int offset,int length) throws IOException {
-            int available=MAX_CHARACTERS-value.length();
+            int available=limit-value.length();
             value.append(chars,offset,Math.min(available,length));
             if(length>available) throw new PreviewLimit();
         }

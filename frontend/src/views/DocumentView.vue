@@ -5,10 +5,12 @@ import { useKnowledgeBaseStore } from '../stores/knowledgeBases.js'
 import { fetchDocuments, uploadDocument, downloadDocument, fetchDocumentText } from '../api/documents.js'
 import { createDocumentPreview } from '../utils/documentPreview.js'
 import DocumentChunkPreview from '../components/DocumentChunkPreview.vue'
+import DocumentIndexPanel from '../components/DocumentIndexPanel.vue'
 import { validateDocument, formatFileSize } from '../utils/documents.js'
 
 const auth = useAuthStore()
 const chunkDocument = ref(null)
+const indexDocument = ref(null)
 const { preview, previewingId, previewError, closePreview, showPreview } = createDocumentPreview(fetchDocumentText, () => auth.sessionVersion)
 const bases = useKnowledgeBaseStore()
 const canRead = computed(() => auth.user?.permissions?.includes('document:read'))
@@ -29,6 +31,7 @@ let requestId = 0
 let controller
 
 async function load() {
+  indexDocument.value = null
   chunkDocument.value = null
   closePreview()
   controller?.abort()
@@ -163,11 +166,13 @@ async function submit() {
           <span class="demo-badge">{{ item.status === 'UPLOADED' ? '已上传' : item.status }}</span>
           <button v-if="canRead" type="button" class="secondary-button" :disabled="previewingId === item.id" @click="chunkDocument = null; showPreview(item)">{{ previewingId === item.id ? '正在提取……' : '查看正文' }}</button>
           <button v-if="canRead" type="button" class="secondary-button" @click="closePreview(); chunkDocument = item">分块预览</button>
+          <button v-if="canRead" type="button" class="secondary-button" @click="closePreview(); chunkDocument = null; indexDocument = item">文档索引</button>
           <button v-if="canRead" type="button" class="secondary-button" :disabled="downloadingId !== null" :aria-label="`下载 ${item.fileName}`" @click="download(item)">{{ downloadingId === item.id ? '正在下载……' : '下载原文件' }}</button>
         </div>
       </li>
     </ul>
     <DocumentChunkPreview v-if="chunkDocument && canRead" :key="chunkDocument.id" :document="chunkDocument" @close="chunkDocument = null" />
+    <DocumentIndexPanel v-if="indexDocument && canRead" :key="indexDocument.id" :document="indexDocument" @close="indexDocument = null" />
     <section v-if="preview || previewError || previewingId !== null" class="empty-panel" aria-label="文档正文预览">
       <button type="button" class="secondary-button" @click="closePreview">关闭预览</button>
       <p v-if="previewingId !== null" role="status">正在读取文件并提取正文……</p>

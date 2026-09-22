@@ -20,3 +20,9 @@ export async function fetchDocumentText(id, signal) {
 export async function fetchDocumentChunks(id, size, overlap, signal) {
   return (await http.get(`/documents/${id}/chunks`, { params: { size, overlap }, signal, timeout: 30000 })).data
 }
+export async function fetchDocumentIndex(id, signal) {
+  return (await http.get(`/documents/${id}/index`, { signal, timeout: 15000 })).data
+}
+export async function buildDocumentIndex(id, signal) {
+  return (await http.post(`/documents/${id}/index`, {}, { signal, timeout: 360000 })).data
+}

@@ -10,6 +10,22 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DocumentTextExtractorTests {
+    @Test void indexingRejectsOverflowAndReadsBeyondPreviewPageLimit() throws Exception {
+        assertThrows(DocumentException.class,()->DocumentTextExtractor.forIndex("a.txt","字".repeat(4001).getBytes(StandardCharsets.UTF_8)));
+        assertEquals(4000,DocumentTextExtractor.forIndex("a.txt","字".repeat(4000).getBytes(StandardCharsets.UTF_8)).content().length());
+        assertThrows(DocumentException.class,()->DocumentTextExtractor.forIndex("a.pdf",DocumentFixtures.pdf(51,false)));
+        try(var pdf=new PDDocument();var output=new ByteArrayOutputStream()) {
+            for(int i=0;i<21;i++) pdf.addPage(new PDPage());
+            try(var stream=new PDPageContentStream(pdf,pdf.getPage(20))) {
+                stream.beginText(); stream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA),12);
+                stream.newLineAtOffset(50,700); stream.showText("TEXT_ON_PAGE_21"); stream.endText();
+            }
+            pdf.save(output);
+            assertFalse(DocumentTextExtractor.extract("a.pdf",output.toByteArray()).content().contains("TEXT_ON_PAGE_21"));
+            var indexed=DocumentTextExtractor.forIndex("a.pdf",output.toByteArray());
+            assertTrue(indexed.content().contains("TEXT_ON_PAGE_21")); assertFalse(indexed.truncated());
+        }
+    }
     @Test void textPreservesMarkdownAndNormalizesBomAndNewlines() {
         var result=DocumentTextExtractor.extract("note.MD","\uFEFF# 标题\r\n正文🙂".getBytes(StandardCharsets.UTF_8));
         assertEquals("# 标题\n正文🙂",result.content()); assertFalse(result.truncated());
