@@ -24,8 +24,16 @@ public class LlmClient {
             @Value("${app.llm.model:}") String model,@Value("${app.llm.timeout-seconds:45}") int timeout,
             @Value("${app.llm.token-parameter:max_tokens}") String tokenParameter,
             @Value("${app.llm.thinking:disabled}") String thinking) {
-        this.endpoint=endpoint.strip(); this.key=key.strip(); this.model=model.strip();
-        this.timeout=timeout; this.tokenParameter=tokenParameter; this.thinking=thinking;
+        this.endpoint=normalize(endpoint); this.key=normalize(key); this.model=normalize(model);
+        this.timeout=timeout; this.tokenParameter=normalize(tokenParameter); this.thinking=normalize(thinking);
+    }
+    // IDEA imports .env as properties, which preserves shell-style surrounding quotes.
+    private static String normalize(String value) {
+        String text=value.strip();
+        if(text.length()>=2 && ((text.startsWith("'") && text.endsWith("'"))
+                || (text.startsWith("\"") && text.endsWith("\""))))
+            return text.substring(1,text.length()-1).strip();
+        return text;
     }
     public record Configuration(boolean configured,String model) {}
     public record Reply(String content,String model,boolean truncated) {}

@@ -89,10 +89,12 @@ if (-not (Test-Path -Path $MAVEN_M2_PATH)) {
 }
 
 $MAVEN_WRAPPER_DISTS = $null
-if ((Get-Item $MAVEN_M2_PATH).Target[0] -eq $null) {
+$mavenM2Item = Get-Item $MAVEN_M2_PATH
+$mavenM2Target = $mavenM2Item.Target
+if ($null -eq $mavenM2Target -or $mavenM2Target.Count -eq 0) {
   $MAVEN_WRAPPER_DISTS = "$MAVEN_M2_PATH/wrapper/dists"
 } else {
-  $MAVEN_WRAPPER_DISTS = (Get-Item $MAVEN_M2_PATH).Target[0] + "/wrapper/dists"
+  $MAVEN_WRAPPER_DISTS = $mavenM2Target[0] + "/wrapper/dists"
 }
 
 $MAVEN_HOME_PARENT = "$MAVEN_WRAPPER_DISTS/$distributionUrlNameMain"
@@ -127,12 +129,23 @@ Write-Verbose "Couldn't find MAVEN_HOME, downloading and installing it ..."
 Write-Verbose "Downloading from: $distributionUrl"
 Write-Verbose "Downloading to: $TMP_DOWNLOAD_DIR/$distributionUrlName"
 
-$webclient = New-Object System.Net.WebClient
-if ($env:MVNW_USERNAME -and $env:MVNW_PASSWORD) {
-  $webclient.Credentials = New-Object System.Net.NetworkCredential($env:MVNW_USERNAME, $env:MVNW_PASSWORD)
+$targetDistribution = "$TMP_DOWNLOAD_DIR/$distributionUrlName"
+$curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+if ($curl -and -not $env:MVNW_USERNAME) {
+  # Some Windows installations cannot reach the certificate revocation server.
+  # Limit the workaround to this fixed download; the SHA-256 is verified below.
+  & $curl.Source --ssl-no-revoke -f -L -o $targetDistribution $distributionUrl
+  if ($LASTEXITCODE -ne 0) {
+    Write-Error "curl.exe failed to download Maven from $distributionUrl"
+  }
+} else {
+  $webclient = New-Object System.Net.WebClient
+  if ($env:MVNW_USERNAME -and $env:MVNW_PASSWORD) {
+    $webclient.Credentials = New-Object System.Net.NetworkCredential($env:MVNW_USERNAME, $env:MVNW_PASSWORD)
+  }
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+  $webclient.DownloadFile($distributionUrl, $targetDistribution) | Out-Null
 }
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$webclient.DownloadFile($distributionUrl, "$TMP_DOWNLOAD_DIR/$distributionUrlName") | Out-Null
 
 # If specified, validate the SHA-256 sum of the Maven distribution zip file
 $distributionSha256Sum = (Get-Content -Raw "$scriptDir/.mvn/wrapper/maven-wrapper.properties" | ConvertFrom-StringData).distributionSha256Sum

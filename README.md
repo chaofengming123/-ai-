@@ -2,7 +2,7 @@
 
 从零逐步实现 Vue 3 + Spring Boot 企业知识管理与 RAG 问答系统。
 
-当前第 20 课：已实现知识库 CRUD、登录、角色权限、TXT / Markdown / PDF / DOCX 上传和原文件下载。MySQL 保存元数据，新文件进入 MinIO；支持保留本地副本的旧文件迁移。PDF / DOCX 在保存前执行格式检查，尚未实现正文提取或 AI 问答。
+当前第 21 课：已实现知识库 CRUD、登录、角色权限、TXT / Markdown / PDF / DOCX 上传和原文件下载，以及基础 LLM 对话。MySQL 保存元数据，新文件进入 MinIO；支持保留本地副本的旧文件迁移。尚未实现正文提取或基于知识库的 RAG 问答。
 
 ## 启动前端
 
@@ -16,23 +16,102 @@ npm run dev
 
 ## 启动数据库和后端
 
-需要 Docker Desktop 与 Java 17。在项目根目录运行：
+需要 Docker Desktop 与 Java 17。先运行 `java -version`，确认当前终端使用的是 Java 17；修改过 `JAVA_HOME` 或 `PATH` 后需要关闭并重新打开终端。
+
+### Windows PowerShell（推荐）
+
+在项目根目录运行：
+
+```powershell
+python scripts/init-db-env.py
+docker compose --env-file docker/.env -f docker/compose.yml up -d --build --wait
+.\scripts\backend.ps1 spring-boot:run
+```
+
+`backend.ps1` 会读取 `docker/.env`、检查 Java 版本并调用 Windows Maven Wrapper。不要在 PowerShell 中直接运行 `scripts/backend.sh`；它是给 Unix Shell 使用的脚本。首次运行 Maven Wrapper 会下载 Maven，可能需要几分钟。
+
+### macOS、Linux 或 Git Bash
+
+在项目根目录运行：
 
 ```bash
 python3 scripts/init-db-env.py
 docker compose --env-file docker/.env -f docker/compose.yml up -d --build --wait
-scripts/backend.sh spring-boot:run
+./scripts/backend.sh spring-boot:run
 ```
+
+如果 Git Bash 首次运行出现 `CRYPT_E_REVOCATION_OFFLINE` 或 `curl: Failed to fetch`，请改用上面的 Windows PowerShell 方式，避免为 Git 或 curl 全局关闭证书吊销检查。
+
+### Windows IDEA 启动
+
+命令行和 IDEA 是两种独立的启动方式，不必同时运行，也不需要只能点击运行按钮。
+
+1. 先在项目根目录运行上面的初始化和 Docker Compose 命令，确保 Docker Desktop 已启动。
+2. 在 IDEA 打开项目，将 `backend/pom.xml` 添加为 Maven 项目并重新加载。项目 SDK、Maven 导入器 JDK、运行配置 JRE 均选择 Java 17。本机 JDK 路径为 `D:\Java JDK\17`。
+3. 在“运行 → 编辑配置”中选择或新建 Application 配置 `AiKnowledgeApplication`。主类填写 `com.example.aiknowledge.AiKnowledgeApplication`，模块选择 `ai-knowledge-backend`。
+4. 工作目录设为本项目的 `backend` 目录。本机为 `D:\知识库系统\-ai-\backend`；不要使用旧路径 `D:\知识库系统-ai-`。
+5. 在“修改选项”中显示 VM options，填入下面这一行，让 IDEA 读取本地配置文件（不是 Program arguments）：
+
+```text
+-Dspring.config.import=file:../docker/.env[.properties]
+```
+
+6. 移除运行配置中重复且过期的 `LLM_*` 环境变量，避免它们覆盖文件里的新值。点击运行，看到 `Started AiKnowledgeApplication` 后访问 `http://localhost:8080/api/health`。返回正常只代表后端存活，不代表数据库和模型都已验证。
+
+本机此前打开的是父目录 `D:\知识库系统`，已在其 `.idea` 中配置 Maven 项目和上述运行项；如 IDEA 未显示，请重新打开项目或重新加载 Maven。更换电脑后按实际路径重新设置。
+
+### Windows 常见启动问题
+
+- `java.exe : openjdk version ... NativeCommandError`：这是 Windows PowerShell 5.1 把 Java 正常输出到错误流的版本信息当成错误。项目脚本已兼容此情况，使用更新后的 `scripts/backend.ps1`，不需要重装 Java。
+- 禁止运行脚本：可仅对这次启动执行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\backend.ps1 spring-boot:run`，不修改全局执行策略。
+- Java 版本不对：关闭并重开终端和 IDEA。需要临时指定本机 JDK 时，在当前 PowerShell 中执行下面两行，然后再启动后端。
+
+```powershell
+$env:JAVA_HOME = 'D:\Java JDK\17'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+.\scripts\backend.ps1 spring-boot:run
+```
+
+- `8080 already in use`：先停止另一份后端。命令行使用 `Ctrl+C`，IDEA 使用停止按钮，再选择一种方式启动。
+- 仅在出现 `Unable to establish loopback connection` 等本地套接字错误时，可尝试给 IDEA VM options 加上 `-Djdk.net.unixdomain.tmpdir=C:/codex-no-unix-sockets`。该路径须不存在，让 JDK 回退到 TCP；不是普通启动的必填项。
+- 修改 `docker/.env` 后必须停止并重新启动后端，仅刷新网页不会重新加载配置。
+
+### GLM 配置与排查
+
+编辑已有 `docker/.env`，添加或更新下面这些键；不要覆盖原来的数据库、JWT、MinIO 配置，也不要重复添加同名键：
+
+```dotenv
+LLM_ENDPOINT=https://open.bigmodel.cn/api/paas/v4/chat/completions
+LLM_API_KEY=替换为自己的真实密钥
+LLM_MODEL=glm-4.7-flash
+LLM_TOKEN_PARAMETER=max_tokens
+LLM_THINKING=disabled
+```
+
+PowerShell 启动脚本会载入此文件；IDEA 需按上文设置 `spring.config.import`。模型配置读取现已兼容成对的单引号或双引号。旧版 Windows 脚本和 IDEA properties 导入会保留引号，导致明明填了密钥仍显示“模型尚未配置”；更新代码并重启即可应用修复，无须因此重新申请密钥。
+
+登录后打开 AI 对话页。在浏览器开发者工具的网络面板检查 `/api/chat/config`：`configured: true` 表示本地配置格式通过检查，并不证明密钥有效。发送一次简单问题，收到模型回答才是完整验收。
+
+- “模型尚未配置”：检查启动方式是否读取了 `.env`、密钥是否为空、是否已重启以及是否连接到了旧后端。
+- “模型服务拒绝访问”：检查密钥和模型访问权限。
+- “限流或额度不足”：检查服务商账户用量。
+- “无法取得模型回复”或超时：检查网络、接口地址和服务状态。
+
+不要把密钥放在前端、提交到 Git 或粘贴到报错截图中。
+
+### Windows 与 Mac 的账号
+
+两台电脑各自运行本地 MySQL 时，数据库和账号不会自动同步，因此 Mac 注册的账号默认不能在 Windows 登录。可在 Windows 重新注册测试账号；若要共用数据，需要另行配置同一个受保护的数据库服务，或安全迁移数据库备份。不要直接向公网开放本机 MySQL。
 
 密码保存在被 Git 忽略的 `docker/.env`，不要删除或提交它。MySQL 监听本机 3307，后端 8080；前端开发代理转发 `/api` 请求到后端。命名卷保存数据库，勿使用 `down -v` 删除数据。
 
 `GET /api/health` 仍是基础服务存活检查，不检查数据库健康。
 
-只启动一份后端，避免与 IDEA 抢占 8080。更新代码后需要重启后端，以应用新增迁移和接口。文档入口为 `/documents`，支持单个最多 1 MB 的 TXT / Markdown / PDF / DOCX 文件及下载。文本需为 UTF-8，PDF 需未加密且不超过 500 页；DOCX 的结构及解压限制见第二十课。MinIO API 为本机 9000，控制台为 9001；首次从固定源码版本构建可能需要数分钟。IDEA 启动需补充 docker/.env 中新增的 MINIO_ROOT_USER / MINIO_ROOT_PASSWORD 环境变量。
+只启动一份后端，避免与 IDEA 抢占 8080。更新代码后需要重启后端，以应用新增迁移和接口。文档入口为 `/documents`，支持单个最多 1 MB 的 TXT / Markdown / PDF / DOCX 文件及下载。文本需为 UTF-8，PDF 需未加密且不超过 500 页；DOCX 的结构及解压限制见第二十课。MinIO API 为本机 9000，控制台为 9001；首次从固定源码版本构建可能需要数分钟。IDEA 按上文导入配置文件后即可读取其中的 MinIO 凭据。
 
 旧文件默认位于 `backend/uploads/documents`，可用 `DOCUMENT_STORAGE_DIR` 指定原目录绝对路径。运行 `scripts/migrate-documents.sh preview` 预览，再用 `scripts/migrate-documents.sh apply` 迁移；复制校验后切换记录，保留本地备份。原文件与密钥不提交到 Git。含文档的知识库暂不允许删除。MinIO 社区发行状态、构建及详细配置见第十九课。
 
-运行 `scripts/backend.sh test` 使用独立 MySQL 测试库，MinIO 测试使用随机私有桶并在结束后清理，需先启动两个容器。前端 `npm test` 验证共享状态和错误处理。
+Windows PowerShell 运行 `.\scripts\backend.ps1 test`，macOS、Linux 或 Git Bash 运行 `./scripts/backend.sh test`，使用独立 MySQL 测试库。MinIO 测试使用随机私有桶并在结束后清理，需先启动两个容器。前端 `npm test` 验证共享状态和错误处理。
 
 ## 目录
 
