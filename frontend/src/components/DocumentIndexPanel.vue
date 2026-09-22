@@ -3,6 +3,7 @@ import { computed, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { fetchDocumentIndex, buildDocumentIndex } from '../api/documents.js'
 import { createVectorStorage } from '../utils/vectorStorage.js'
+import DocumentSearchPanel from './DocumentSearchPanel.vue'
 const props = defineProps({ document: { type: Object, required: true } })
 defineEmits(['close'])
 const auth = useAuthStore()
@@ -36,5 +37,6 @@ onBeforeUnmount(reset)
     <p v-if="!canIndex">当前账号可查看状态，建立索引需要编辑者或管理员权限。</p>
     <p>本次可能需要数分钟。关闭面板不等于停止服务器处理；重建失败会保留上一次成功版本。本课尚未将文档接入聊天问答。</p>
     <p v-if="error" class="load-error" role="alert">{{ error }}</p>
+    <DocumentSearchPanel :key="`${document.id}-${status?.indexedAt ?? ''}`" :document-id="document.id" :available="!!status?.hasActiveIndex && !!status?.currentModel" />
   </section>
 </template>

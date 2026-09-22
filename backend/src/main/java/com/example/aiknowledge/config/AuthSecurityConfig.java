@@ -62,6 +62,9 @@ public class AuthSecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/documents/*/chunks").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.GET, "/api/documents/*/index").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.POST, "/api/documents/*/index").hasAuthority("document:index")
+                .requestMatchers(HttpMethod.POST, "/api/documents/*/search").access(
+                    new org.springframework.security.web.access.expression.WebExpressionAuthorizationManager(
+                        "hasAuthority('document:read') and hasAuthority('chat:send')"))
                 .requestMatchers(HttpMethod.POST, "/api/documents").hasAuthority("document:upload")
                 .requestMatchers("/api/documents", "/api/documents/**").denyAll()
                 .requestMatchers(HttpMethod.GET, "/api/knowledge-bases", "/api/knowledge-bases/**").hasAuthority("knowledge-base:read")

@@ -33,6 +33,7 @@ class DocumentIndexTests {
     @MockitoSpyBean QdrantClient qdrant;
     @Autowired DocumentService documents;
     @Autowired DocumentIndexService indexes;
+    @Autowired DocumentSearchService searches;
     @Autowired DocumentIndexMapper rows;
     @Autowired DocumentMapper documentMapper;
     @Autowired KnowledgeBaseService bases;
@@ -67,6 +68,87 @@ class DocumentIndexTests {
     HttpResponse<String> raw(String method,String path,String body) throws Exception {
         return HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:6333"+path))
             .header("Content-Type","application/json").method(method,body==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(body)).build(),HttpResponse.BodyHandlers.ofString());
+    }
+    HttpResponse<String> searchRequest(long id,String query,String bearer) throws Exception {
+        var builder=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/documents/"+id+"/search"))
+            .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(Map.of("query",query))));
+        if(bearer!=null) builder.header("Authorization","Bearer "+bearer);
+        return HttpClient.newHttpClient().send(builder.build(),HttpResponse.BodyHandlers.ofString());
+    }
+    @Test void documentSearchUsesOnlyPublishedCollectionAndEmbedsOnlyQuestion() throws Exception {
+        long id=upload("索引范围甲"); indexes.build(id); String old=rows.find(id).activeCollection();
+        indexes.build(id); String active=rows.find(id).activeCollection();
+        long other=upload("其他文档乙"); indexes.build(other);
+        clearInvocations(embedding,qdrant);
+        var response=searchRequest(id,"  上传步骤是什么？  ",token); assertEquals(200,response.statusCode(),response.body());
+        var result=json.readTree(response.body()); assertEquals(id,result.path("documentId").asLong());
+        assertEquals(baseId,result.path("knowledgeBaseId").asLong());
+        assertEquals("索引范围甲",result.path("matches").get(0).path("text").asText());
+        assertEquals(0,result.path("matches").get(0).path("startOffset").asInt());
+        assertEquals("no-store",response.headers().firstValue("cache-control").orElseThrow());
+        assertFalse(response.body().contains(active));
+        verify(embedding).embed(List.of("上传步骤是什么？"));
+        verify(qdrant).search(eq(active),any(double[].class)); verify(qdrant,never()).search(eq(old),any(double[].class));
+    }
+    @Test void failedRebuildCanStillSearchPublishedVersion() {
+        long id=upload("保留的正文"); indexes.build(id);
+        when(embedding.embed(anyList())).thenThrow(new ChatException(503,"模型暂不可用"));
+        assertThrows(ChatException.class,()->indexes.build(id));
+        doReturn(List.of(new double[]{1,0})).when(embedding).embed(anyList());
+        var result=searches.search(id,"正文是什么");
+        assertTrue(result.usingPreviousVersion()); assertEquals("保留的正文",result.matches().get(0).text());
+    }
+    @Test void searchRejectsMissingIndexInvalidInputAndModelMismatchBeforeEmbedding() throws Exception {
+        long id=upload("说明");
+        assertEquals(401,searchRequest(id,"问题",null).statusCode());
+        assertEquals(400,searchRequest(id," ",token).statusCode());
+        assertEquals(400,searchRequest(id,"字".repeat(1001),token).statusCode());
+        assertEquals(409,searchRequest(id,"问题",token).statusCode());
+        verify(embedding,never()).embed(anyList());
+        indexes.build(id); clearInvocations(embedding);
+        when(embedding.spaceId()).thenReturn("changed-space");
+        assertEquals(409,searchRequest(id,"问题",token).statusCode()); verify(embedding,never()).embed(anyList());
+    }
+    @Test void searchRejectsWrongDocumentPayloadAndReleasesCapacityAfterFailure() throws Exception {
+        long id=upload("正确正文"); indexes.build(id); var row=rows.find(id);
+        var original=qdrant.search(row.activeCollection(),new double[]{1,0});
+        var wrong=original.deepCopy();
+        ((tools.jackson.databind.node.ObjectNode)wrong.get(0).path("payload")).put("documentId",id+1);
+        doReturn(wrong).when(qdrant).search(eq(row.activeCollection()),any(double[].class));
+        assertEquals(502,searchRequest(id,"问题",token).statusCode());
+        doCallRealMethod().when(qdrant).search(anyString(),any(double[].class));
+        assertEquals("正确正文",searches.search(id,"问题").matches().get(0).text());
+    }
+    @Test void searchDoesNotReturnStaleResultWhenActiveVersionChangesDuringEmbedding() {
+        long id=upload("版本切换"); indexes.build(id);
+        when(embedding.embed(anyList())).thenAnswer(call->{
+            jdbc.update("UPDATE document_index SET active_collection=? WHERE document_id=?","document27_"+id+"_new",id);
+            return List.of(new double[]{1,0});
+        });
+        var failure=assertThrows(ChatException.class,()->searches.search(id,"问题"));
+        assertEquals(409,failure.status()); assertTrue(failure.getMessage().contains("已更新"));
+    }
+    @Test void searchNeedsBothReadAndModelPermissions() throws Exception {
+        long id=upload("权限说明"); indexes.build(id);
+        String code="TEST_"+UUID.randomUUID().toString().substring(0,8);
+        jdbc.update("INSERT INTO app_role(code,label) VALUES (?,?)",code,code);
+        long role=jdbc.queryForObject("SELECT id FROM app_role WHERE code=?",Long.class,code);
+        try {
+            jdbc.update("DELETE FROM app_user_role WHERE user_id=?",userId);
+            jdbc.update("INSERT INTO app_user_role(user_id,role_id) VALUES (?,?)",userId,role);
+            jdbc.update("INSERT INTO app_role_permission(role_id,permission_id) SELECT ?,id FROM app_permission WHERE code='document:read'",role);
+            clearInvocations(embedding);
+            assertEquals(403,searchRequest(id,"问题",token).statusCode());
+            jdbc.update("DELETE FROM app_role_permission WHERE role_id=?",role);
+            jdbc.update("INSERT INTO app_role_permission(role_id,permission_id) SELECT ?,id FROM app_permission WHERE code='chat:send'",role);
+            assertEquals(403,searchRequest(id,"问题",token).statusCode()); verify(embedding,never()).embed(anyList());
+            jdbc.update("INSERT INTO app_role_permission(role_id,permission_id) SELECT ?,id FROM app_permission WHERE code='document:read'",role);
+            assertEquals(200,searchRequest(id,"问题",token).statusCode());
+        } finally {
+            jdbc.update("DELETE FROM app_user_role WHERE role_id=?",role);
+            jdbc.update("DELETE FROM app_role_permission WHERE role_id=?",role);
+            jdbc.update("DELETE FROM app_role WHERE id=?",role);
+        }
     }
     @AfterEach void cleanup() throws Exception {
         var collections=json.readTree(raw("GET","/collections",null).body()).path("result").path("collections");
