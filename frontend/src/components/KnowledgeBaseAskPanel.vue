@@ -11,11 +11,13 @@ const expectedIds = ref([])
 const retrievalMode = ref('vector')
 const keywordText = ref('')
 const rerankEnabled = ref(false)
+const bypassCache = ref(false)
+const cacheLabels = { HIT: '命中：复用问题向量', MISS: '未命中：已生成并缓存', BYPASS: '跳过缓存：本次重新生成且不写缓存', NOT_USED: '未使用：没有参与检索的文档' }
 const stageLabels = { EMBEDDING: '问题向量生成', VECTOR_SEARCH: '文档向量检索与校验', KEYWORD_SCAN: '关键词原文扫描与校验', RERANK: 'BGE 重排', GENERATION: 'GLM 生成与格式校验' }
 const allowed = computed(() => ['knowledge-base:read', 'document:read', 'chat:send'].every(p => auth.user?.permissions?.includes(p)))
 const { result, busy, error, run, reset } = createVectorStorage({
-  search: async ({ mode, text, expectedDocuments, searchMode, keywords, rerank }, signal) => ({
-    ...(await http.post(`/knowledge-bases/${props.baseId}/${mode}`, { query: text, mode: searchMode, keywords, rerank }, { signal, timeout: 300000 })).data,
+  search: async ({ mode, text, expectedDocuments, searchMode, keywords, rerank, bypassCache }, signal) => ({
+    ...(await http.post(`/knowledge-bases/${props.baseId}/${mode}`, { query: text, mode: searchMode, keywords, rerank, bypassCache }, { signal, timeout: 300000 })).data,
     kind: mode,
     expectedDocuments,
   }),
@@ -30,7 +32,7 @@ function submit(mode) {
   const expectedDocuments = props.documents.filter(doc => expectedIds.value.includes(doc.id))
     .map(doc => ({ id: doc.id, fileName: doc.fileName }))
   const keywords = retrievalMode.value === 'hybrid' ? keywordText.value.split(/[,，]/).map(word => word.trim()).filter(Boolean) : []
-  return run('search', { mode, text: query.value, expectedDocuments, searchMode: retrievalMode.value, keywords, rerank: rerankEnabled.value })
+  return run('search', { mode, text: query.value, expectedDocuments, searchMode: retrievalMode.value, keywords, rerank: rerankEnabled.value, bypassCache: bypassCache.value })
 }
 const sources = computed(() => result.value?.kind === 'answer' ? result.value.sources : retrieval.value?.matches ?? [])
 onBeforeUnmount(reset)
@@ -54,6 +56,8 @@ onBeforeUnmount(reset)
         <input id="retrieval-keywords" v-model="keywordText" maxlength="204" :disabled="busy" placeholder="例如：1 MB, UTF-8">
         <p>关键词按原文字面匹配，忽略大小写。它们用于查找资料，不是预期文档标注；混合检索仍会调用向量模型。</p>
       </template>
+      <label><input v-model="bypassCache" type="checkbox" :disabled="busy || !allowed"> 本次跳过问题向量缓存 · 第 35 课</label>
+      <p>默认复用同一用户、同一模型配置下的问题向量，最多保存 5 分钟；文档检索和答案仍每次重新处理。后端重启会清空缓存。</p>
       <label><input v-model="rerankEnabled" type="checkbox" :disabled="busy || !allowed"> 启用 BGE 重排 · 第 33 课</label>
       <p>默认关闭。开启后，候选至少两段时额外调用一次 BAAI/bge-reranker-v2-m3，从最多六段中选出并排序最多三段；可能更慢，效果需对照原文核实。</p>
       <fieldset :disabled="busy || !allowed">
@@ -70,6 +74,7 @@ onBeforeUnmount(reset)
     <p v-if="error" class="load-error" role="alert">{{ error }}</p>
     <section v-if="retrieval" aria-label="知识库结果">
       <p>知识库：{{ retrieval.knowledgeBaseName }} · 问题：{{ retrieval.query }}</p>
+      <p v-if="retrieval.embeddingCache">问题向量缓存：{{ cacheLabels[retrieval.embeddingCache] ?? retrieval.embeddingCache }}</p>
       <details v-if="retrieval.timings">
         <summary>本次耗时 · 第 34 课：后端 {{ retrieval.timings.totalMillis }} ms</summary>
         <table>

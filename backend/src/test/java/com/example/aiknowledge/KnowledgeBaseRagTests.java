@@ -55,6 +55,16 @@ class KnowledgeBaseRagTests {
                 hit(0,"文档"+id+"甲",1-id*.1),hit(1,"文档"+id+"乙",1-id*.1-.01),hit(2,"文档"+id+"丙",1-id*.1-.02)));
         }
     }
+    @Test void cacheHitSkipsEmbeddingButSearchStillRunsAndBypassIsExplicit() {
+        prepareRerank();
+        var first=(KnowledgeBaseRagService.Retrieval)rag.execute(9,1,"q",false);
+        var second=(KnowledgeBaseRagService.Retrieval)rag.execute(9,1,"q",false);
+        assertEquals("MISS",first.embeddingCache()); assertEquals("HIT",second.embeddingCache());
+        assertEquals(0,second.timings().steps().get(0).calls());
+        verify(embedding,times(1)).embed(anyList()); verify(search,times(6)).searchWithVector(anyLong(),eq("q"),any());
+        var bypass=(KnowledgeBaseRagService.Retrieval)rag.execute(9,1,"q",false,"vector",List.of(),false,true);
+        assertEquals("BYPASS",bypass.embeddingCache()); verify(embedding,times(2)).embed(anyList());
+    }
     @Test void rerankCapsPoolRenumbersSourcesAndKeepsSameRequestBaseline() {
         prepareRerank();
         when(reranker.select(anyString(),anyList())).thenReturn(List.of(5,3,0));
@@ -94,8 +104,8 @@ class KnowledgeBaseRagTests {
         when(documents.list(1)).thenReturn(List.of(document(1),document(2),document(3),document(4)));
         when(indexes.find(1)).thenReturn(index(1,"space","c1")); when(indexes.find(2)).thenReturn(index(2,"space","c2"));
         when(indexes.find(4)).thenReturn(index(4,"other","c4"));
-        when(search.searchWithVector(eq(1L),eq("q"),same(vector))).thenReturn(result(1,hit(0,"重复",.8),hit(1,"甲",.6)));
-        when(search.searchWithVector(eq(2L),eq("q"),same(vector))).thenReturn(result(2,hit(0,"乙",.9),hit(1,"重复",.8),hit(2,"丙",.7)));
+        when(search.searchWithVector(eq(1L),eq("q"),org.mockito.AdditionalMatchers.aryEq(vector))).thenReturn(result(1,hit(0,"重复",.8),hit(1,"甲",.6)));
+        when(search.searchWithVector(eq(2L),eq("q"),org.mockito.AdditionalMatchers.aryEq(vector))).thenReturn(result(2,hit(0,"乙",.9),hit(1,"重复",.8),hit(2,"丙",.7)));
         var result=(KnowledgeBaseRagService.Retrieval)rag.execute(9,1,"q",false);
         assertEquals(List.of("乙","重复","丙"),result.matches().stream().map(KnowledgeBaseRagService.Hit::text).toList());
         assertEquals(List.of(1,2,3),result.matches().stream().map(KnowledgeBaseRagService.Hit::sourceId).toList());

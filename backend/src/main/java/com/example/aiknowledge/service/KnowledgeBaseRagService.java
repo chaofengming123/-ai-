@@ -16,6 +16,7 @@ public class KnowledgeBaseRagService {
     private final EmbeddingClient embedding;
     private final LlmClient llm;
     private final RerankClient reranker;
+    private final QuestionVectorCache vectorCache=new QuestionVectorCache();
     private final Semaphore capacity=new Semaphore(2);
     private final Set<Long> activeUsers=ConcurrentHashMap.newKeySet();
     public KnowledgeBaseRagService(KnowledgeBaseService bases,DocumentMapper documents,DocumentIndexMapper indexes,
@@ -27,7 +28,7 @@ public class KnowledgeBaseRagService {
     public record Hit(int sourceId,long documentId,String fileName,int chunkIndex,int startOffset,int endOffset,
         String text,double score,java.time.LocalDateTime indexedAt,boolean usingPreviousVersion,String note) {}
     public record Retrieval(long knowledgeBaseId,String knowledgeBaseName,String query,String embeddingModel,
-        int totalDocuments,int searchedDocuments,List<Skipped> skipped,List<Hit> matches,String mode,List<String> keywords,RerankInfo rerank,RagTimings.Report timings) {}
+        int totalDocuments,int searchedDocuments,List<Skipped> skipped,List<Hit> matches,String mode,List<String> keywords,RerankInfo rerank,RagTimings.Report timings,String embeddingCache) {}
     public record RerankInfo(boolean enabled,boolean applied,String model,int candidateCount,List<Hit> before) {}
     public record Answer(Retrieval retrieval,boolean insufficient,String answer,String model,List<Hit> sources) {}
     private record Item(DocumentInfo document,DocumentIndex index) {}
@@ -60,6 +61,9 @@ public class KnowledgeBaseRagService {
         return List.copyOf(result);
     }
     public Object execute(long userId,long baseId,String question,boolean answer,String requestedMode,List<String> inputKeywords,boolean rerank) {
+        return execute(userId,baseId,question,answer,requestedMode,inputKeywords,rerank,false);
+    }
+    public Object execute(long userId,long baseId,String question,boolean answer,String requestedMode,List<String> inputKeywords,boolean rerank,boolean bypassCache) {
         var timings=new RagTimings();
         String mode=requestedMode==null?"vector":requestedMode;
         var keywords=HybridRanking.keywords(mode,inputKeywords);
@@ -80,8 +84,11 @@ public class KnowledgeBaseRagService {
             }
             if(eligible.size()>5) throw new ChatException(400,"本课每个知识库最多检索 5 份兼容的成功索引，请使用较小的练习知识库。");
             List<Hit> candidates=new ArrayList<>(); var all=new ArrayList<Hit>();
+            String cacheStatus="NOT_USED";
             if(!eligible.isEmpty()) {
-                var vector=timings.measure(RagTimings.Stage.EMBEDDING,()->embedding.embed(List.of(question.strip())).get(0));
+                var cached=vectorCache.get(userId,embedding.spaceId(),question,bypassCache,
+                    ()->timings.measure(RagTimings.Stage.EMBEDDING,()->embedding.embed(List.of(question.strip())).get(0)));
+                var vector=cached.vector(); cacheStatus=cached.status();
                 for(var item:eligible) {
                     var found=timings.measure(RagTimings.Stage.VECTOR_SEARCH,()->search.searchWithVector(item.document().id(),question.strip(),vector));
                     collect(candidates,found,baseId);
@@ -114,7 +121,7 @@ public class KnowledgeBaseRagService {
                     timings.measure(RagTimings.Stage.GENERATION,()->GroundedAnswer.generate(llm,question.strip(),finalSelected.stream().map(Hit::text).toList()));
                 unchanged(baseId,before);
             }
-            var retrieval=new Retrieval(baseId,base.name(),question.strip(),embedding.configuration().model(),before.size(),eligible.size(),List.copyOf(skipped),selected,mode,keywords,rerankInfo,timings.snapshot());
+            var retrieval=new Retrieval(baseId,base.name(),question.strip(),embedding.configuration().model(),before.size(),eligible.size(),List.copyOf(skipped),selected,mode,keywords,rerankInfo,timings.snapshot(),cacheStatus);
             if(!answer) return retrieval;
             return new Answer(retrieval,generated.insufficient(),generated.answer(),llm.configuration().model(),
                 generated.sourceIds().stream().map(number->finalSelected.get(number-1)).toList());

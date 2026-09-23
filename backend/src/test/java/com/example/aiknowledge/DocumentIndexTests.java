@@ -103,7 +103,7 @@ class DocumentIndexTests {
         assertEquals("第二份原文",json.readTree(answer.body()).path("sources").get(0).path("text").asText());
         assertEquals("no-store",answer.headers().firstValue("cache-control").orElseThrow());
         var steps=json.readTree(answer.body()).path("retrieval").path("timings").path("steps");
-        assertEquals(5,steps.size()); assertEquals(1,steps.get(0).path("calls").asInt());
+        assertEquals(5,steps.size()); assertEquals(0,steps.get(0).path("calls").asInt());
         assertEquals(2,steps.get(1).path("calls").asInt()); assertEquals(0,steps.get(2).path("calls").asInt());
         assertEquals(1,steps.get(3).path("calls").asInt()); assertEquals(1,steps.get(4).path("calls").asInt());
     }
