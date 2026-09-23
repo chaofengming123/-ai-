@@ -66,6 +66,8 @@ public class EmbeddingClient {
         var future=http.sendAsync(request,info->new BoundedBody());
         try {
             var response=future.get(timeout,TimeUnit.SECONDS);
+            if(response.statusCode()==502 || response.statusCode()==503 || response.statusCode()==504)
+                throw new com.example.aiknowledge.exception.RetryableEmbeddingException();
             if(response.statusCode()==404) throw new ChatException(503,"向量模型或接口不存在，请核对地址和模型名。");
             if(response.statusCode()==401 || response.statusCode()==403) throw new ChatException(502,"向量服务拒绝访问，请检查后端 Embedding 密钥与模型权限。");
             if(response.statusCode()==429) throw new ChatException(503,"向量服务限流或额度不足，请稍后手动重试。");

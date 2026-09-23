@@ -24,13 +24,13 @@ public class DocumentIndexService {
         this.files=files; this.documents=documents; this.indexes=indexes; this.embedding=embedding; this.qdrant=qdrant;
     }
     public record Status(String state,boolean hasActiveIndex,boolean currentModel,int chunks,int dimensions,
-        int characters,String model,String note,String error,LocalDateTime indexedAt) {}
+        int characters,String model,String note,String error,LocalDateTime indexedAt,boolean recoveryAllowed) {}
     public Status status(long id) {
         requireDocument(id);
         var row=indexes.find(id);
-        if(row==null) return new Status("NOT_INDEXED",false,false,0,0,0,null,null,null,null);
+        if(row==null) return new Status("NOT_INDEXED",false,false,0,0,0,null,null,null,null,false);
         return new Status(row.state(),row.activeCollection()!=null,embedding.spaceId().equals(row.activeSpace()),
-            row.chunkCount(),row.dimensions(),row.sourceCharacters(),row.activeModel(),row.note(),row.errorMessage(),row.indexedAt());
+            row.chunkCount(),row.dimensions(),row.sourceCharacters(),row.activeModel(),row.note(),row.errorMessage(),row.indexedAt(),"PROCESSING".equals(row.state()) && indexes.expired(id)==1);
     }
     private com.example.aiknowledge.model.DocumentInfo requireDocument(long id) {
         var document=documents.findById(id);
@@ -79,7 +79,7 @@ public class DocumentIndexService {
             for(int from=0;from<chunks.size();from+=5) {
                 if(System.nanoTime()>deadline) throw new ChatException(504,"索引处理时间过长，请缩短文档后重试。");
                 var batch=chunks.subList(from,Math.min(from+5,chunks.size())).stream().map(TextChunker.Chunk::text).toList();
-                vectors.addAll(embedding.embed(batch));
+                vectors.addAll(IndexEmbeddingRetry.run(()->embedding.embed(batch),deadline));
             }
             int dimensions=vectors.get(0).length;
             if(vectors.stream().anyMatch(v->v.length!=dimensions)) throw new ChatException(502,"不同批次的向量维度不一致，未发布索引。");

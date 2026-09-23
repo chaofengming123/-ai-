@@ -7,6 +7,8 @@ import com.example.aiknowledge.model.DocumentIndex;
 public interface DocumentIndexMapper {
     @Select("SELECT * FROM document_index WHERE document_id=#{id}")
     DocumentIndex find(long id);
+    @Select("SELECT COUNT(*) FROM document_index WHERE document_id=#{id} AND state='PROCESSING' AND updated_at < CURRENT_TIMESTAMP - INTERVAL 10 MINUTE")
+    int expired(long id);
     @Insert("INSERT INTO document_index(document_id) VALUES(#{id}) ON DUPLICATE KEY UPDATE document_id=document_id")
     int initialize(long id);
     // 十分钟租约让进程意外退出后的任务可以由用户重新发起；每次尝试有独立版本。

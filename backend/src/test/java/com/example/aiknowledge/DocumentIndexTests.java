@@ -385,6 +385,19 @@ class DocumentIndexTests {
             verify(embedding,times(1)).embed(anyList());
         } finally { release.countDown(); pool.shutdownNow(); }
     }
+    @Test void expiredTaskCanBeRecoveredAndRetriesOnlyFailedEmbeddingBatch() throws Exception {
+        long id=upload("恢复文字"); rows.initialize(id); rows.claim(id,"abandoned");
+        assertFalse(indexes.status(id).recoveryAllowed());
+        assertEquals(409,taskRequest(id,token).statusCode());
+        jdbc.update("UPDATE document_index SET updated_at=CURRENT_TIMESTAMP - INTERVAL 11 MINUTE WHERE document_id=?",id);
+        assertTrue(indexes.status(id).recoveryAllowed());
+        when(embedding.embed(anyList())).thenThrow(new com.example.aiknowledge.exception.RetryableEmbeddingException())
+            .thenReturn(List.of(new double[]{1,0}));
+        assertEquals(202,taskRequest(id,token).statusCode()); awaitTerminal(id);
+        assertEquals("READY",indexes.status(id).state()); assertFalse(indexes.status(id).recoveryAllowed());
+        verify(embedding,times(2)).embed(anyList()); verify(qdrant,times(1)).upsert(anyString(),anyList());
+        assertEquals(0,rows.fail(id,"abandoned","late failure"));
+    }
     @Test void expiredAttemptCannotPublishOverNewAttempt() {
         long id=upload("重试"); rows.initialize(id); assertEquals(1,rows.claim(id,"old"));
         assertEquals(0,rows.claim(id,"new"));

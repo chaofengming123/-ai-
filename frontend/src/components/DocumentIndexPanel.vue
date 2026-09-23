@@ -23,6 +23,7 @@ onBeforeUnmount(stop)
     <p>建立索引会将提取的正文分块发送到硅基流动。每份正文最多 4000 字符、PDF 最多 50 页；超限会拒绝，不保存截断内容。扫描图片不做 OCR。</p>
     <p v-if="status">处理状态：{{ labels[status.state] || status.state }}</p>
     <p v-if="status?.state === 'PROCESSING'">后台任务已接受，页面每两秒查询状态。若后端曾意外退出，距上次开始十分钟后可重新建立。</p>
+    <p v-if="status?.recoveryAllowed">上次任务已超过恢复等待期，可重新提交。重新提交会从头处理文档。</p>
     <p v-if="status?.error" class="load-error">{{ status.error }}</p>
     <template v-if="status?.hasActiveIndex">
       <p>已保留的成功版本：{{ status.chunks }} 块 · {{ status.characters }} 字符 · {{ status.dimensions }} 维 · {{ status.model }}</p>
@@ -31,7 +32,7 @@ onBeforeUnmount(stop)
       <p v-if="!status.currentModel" class="load-error">当前模型配置已变化，需要重新建立索引后再用于当前模型的检索。</p>
     </template>
     <div class="load-controls">
-      <button v-if="canIndex" class="primary-button" :disabled="busy" @click="refresh('build')">{{ busy ? '正在提交或查询……' : (status?.hasActiveIndex ? '提交重新索引任务' : '提交索引任务') }}</button>
+      <button v-if="canIndex" class="primary-button" :disabled="busy || (status?.state === 'PROCESSING' && !status?.recoveryAllowed)" @click="refresh('build')">{{ busy ? '正在提交或查询……' : (status?.recoveryAllowed ? '恢复索引任务' : status?.hasActiveIndex ? '提交重新索引任务' : '提交索引任务') }}</button>
       <button class="secondary-button" :disabled="busy" @click="refresh('status')">刷新索引状态</button>
     </div>
     <p v-if="!canIndex">当前账号可查看状态，建立索引需要编辑者或管理员权限。</p>
