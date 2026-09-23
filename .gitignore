@@ -30,3 +30,6 @@ target/
 
 # Generated local database initialization (contains a password)
 /docker/mysql/init/01-test-database.sql
+
+# Local backups contain private application data
+/backups/

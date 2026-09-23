@@ -1,0 +1,11 @@
+# 只用于单独的恢复工程；先用 volume-backup.py restore 创建全部新卷。
+volumes:
+  mysql_data:
+    external: true
+    name: ${RESTORE_PREFIX:?Set RESTORE_PREFIX to the fresh restored prefix}_mysql_data
+  minio_data:
+    external: true
+    name: ${RESTORE_PREFIX:?Set RESTORE_PREFIX to the fresh restored prefix}_minio_data
+  qdrant_data:
+    external: true
+    name: ${RESTORE_PREFIX:?Set RESTORE_PREFIX to the fresh restored prefix}_qdrant_data

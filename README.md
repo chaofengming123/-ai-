@@ -182,6 +182,12 @@ Windows 与 Mac 独立部署不会自动同步账号、原文件或索引。共�
 
 更多原理见 [学习手册](docs/learning-manual.md) 和 [第 39 课部署讲义](docs/lesson-39.md)。历史课程中的旧入口以本 README 为准。
 
+## 数据备份与恢复
+
+第 40 课新增停机备份工具，备份 MySQL、MinIO 和 Qdrant 三个数据卷，校验后仅恢复到新卷。操作前等待索引结束并正常停止应用和数据服务；不要在运行中直接复制数据库目录。`docker/.env` 需要另外安全保存，`backups/` 不提交 Git。
+
+具体停机、Mac/Windows 命令及隔离恢复步骤见 [第 40 课：停机备份与恢复演练](docs/lesson-40.md)。恢复过程不会自动覆盖原数据或切换当前应用。
+
 ## Git
 
 默认分支 `codex/initialize`，完成改动并验证后提交、推送到 `origin/codex/initialize`。远程仓库为 `git@github.com:chaofengming123/-ai-.git`，不提交密钥、原文件、数据卷或生成产物。
