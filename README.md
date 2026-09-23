@@ -275,6 +275,7 @@ AI 问答已接入后端非流式模型接口，默认使用智谱免费模型 `
 - [第 36 课：Redis 共享缓存与故障降级](docs/lesson-36.md)
 - [第 37 课：后台索引任务与自动查询状态](docs/lesson-37.md)
 - [第 38 课：有限重试与过期任务恢复](docs/lesson-38.md)
+- [后续学习安排：下一课先部署](docs/next-learning-plan.md)
 
 默认使用 Redis 保存问题向量。运行 `docker compose --env-file docker/.env -f docker/compose.yml up -d --wait redis` 并重启后端；Redis 监听本机 6380，无需新密钥。有效期五分钟，缓存故障显示降级并直接计算，保留 `VECTOR_CACHE_BACKEND=memory` 供对照。后端测试还需启动 Redis，独立随机测试键会在结束后清理。
 
