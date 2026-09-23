@@ -21,6 +21,22 @@ public class ChatService {
     }
     private LlmClient.Reply execute(long userId,List<ChatMessage> messages,
             java.util.function.Function<List<ChatMessage>,LlmClient.Reply> action) {
+        validate(messages);
+        if(!activeUsers.add(userId)) throw new ChatException(429,"上一条问题仍在处理中，请等待完成。");
+        boolean acquired=false;
+        try {
+            acquired=capacity.tryAcquire();
+            if(!acquired) throw new ChatException(503,"当前对话请求较多，请稍后再试。");
+            var prompt=new ArrayList<ChatMessage>();
+            prompt.add(new ChatMessage("system","你是中文学习助手。清楚、准确地回答问题，不确定时说明不确定。本轮为普通对话，没有提供知识库资料，不要声称已读取用户上传的文档。"));
+            prompt.addAll(messages);
+            return action.apply(prompt);
+        } finally {
+            if(acquired) capacity.release();
+            activeUsers.remove(userId);
+        }
+    }
+    public static void validate(List<ChatMessage> messages) {
         if(messages==null || messages.isEmpty() || messages.size()>11 || messages.size()%2==0)
             throw new ChatException(400,"对话需包含最后一个问题，最多携带最近五轮完整对话。");
         int characters=0;
@@ -33,18 +49,5 @@ public class ChatService {
             characters+=message.content().length();
         }
         if(characters>12000) throw new ChatException(400,"本次对话内容过长，请开启新对话后重试。");
-        if(!activeUsers.add(userId)) throw new ChatException(429,"上一条问题仍在处理中，请等待完成。");
-        boolean acquired=false;
-        try {
-            acquired=capacity.tryAcquire();
-            if(!acquired) throw new ChatException(503,"当前对话请求较多，请稍后再试。");
-            var prompt=new ArrayList<ChatMessage>();
-            prompt.add(new ChatMessage("system","你是中文学习助手。清楚、准确地回答问题，不确定时说明不确定。当前没有知识库检索能力，不要声称已读取用户上传的文档。"));
-            prompt.addAll(messages);
-            return action.apply(prompt);
-        } finally {
-            if(acquired) capacity.release();
-            activeUsers.remove(userId);
-        }
     }
 }

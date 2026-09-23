@@ -1,291 +1,187 @@
 # 企业 AI 知识管理平台
 
-从零逐步实现 Vue 3 + Spring Boot 企业知识管理与 RAG 问答系统。
+Vue 3 + Spring Boot + MySQL 的团队知识空间，支持权限管理、文档上传与索引、知识库检索及统一 AI 问答。MinIO 保存原文件，Qdrant 保存向量，Redis 缓存问题向量。
 
-当前第 39 课：已实现知识库 CRUD、登录权限、文档上传与解析、分块、流式聊天、向量实验、文档索引与知识库多文档 RAG 问答，支持检索评估、混合检索、BGE 重排、耗时统计和 Redis 问题向量共享缓存。缓存故障时直接计算，GLM 负责带来源的答案生成。文档索引支持后台提交、状态自动查询、暂时性故障有限重试与过期任务手动恢复。
+## 功能与权限
 
-## Docker 完整应用部署
+| 功能 | 普通用户 USER | 编辑者 EDITOR | 管理员 ADMIN |
+| --- | --- | --- | --- |
+| 浏览知识库、预览和下载资料、AI 问答 | ✓ | ✓ | ✓ |
+| 创建和编辑知识库、上传文档、建立索引 | — | ✓ | ✓ |
+| 删除空知识库 | — | — | ✓ |
+| 向量实验与索引调试入口 | — | ✓ | ✓ |
 
-第 39 课新增本机部署入口 `http://127.0.0.1:8088`，复用已有数据服务。构建、macOS/Windows 启动关闭和更新步骤见 [部署讲义](docs/lesson-39.md)。这与下方开发启动方式不同；本课没有开放公网访问。
+导航、页面和按钮按实际权限显示；后端独立校验业务权限。当前知识库仍为团队共享数据，没有按用户或部门划分私有知识库。向量实验是编辑者的辅助界面，不是新增的后端权限种类。
 
-## 启动前端
+**统一 AI 问答**位于 `/chat`，文档管理不再提供另一套提问表单：
 
-如果 Windows 要与 Mac 使用同一批账号、文档和向量，参见 [两台电脑共用数据](docs/windows-shared-data.md)。该方式让 Windows 访问 Mac 运行的网页，无需在 Windows 另起一套数据库。
+- 自动判断：检索已索引资料，用相似度和模型资料充分性判断选择知识库回答或普通 AI 回答；来源可展开核对。
+- 仅知识库：资料不足时明确提示，不切换普通回答。
+- 普通对话：不检索文档，支持最近五轮完整上下文。
 
-```bash
-cd frontend
-npm install
-npm run dev
+自动判断可能误判，必须依据原文的问题请选择“仅知识库”。检索故障会报错，不会静默当成无资料。没有读取权限的账号只使用普通对话。知识库问题须独立完整，不承接上一轮的省略指代；切换范围会清空对话。提问不会修改知识库或自动上传、删除、重建文档。
+
+当前最多同时检索 5 个知识库，每库最多 5 份兼容成功索引；超过时请缩小范围。自动/知识库问题最多 1000 字符，普通问题最多 2000 字符。问题、相关片段或普通对话上下文会发送给模型服务。
+
+## 文档格式
+
+支持 `.txt`、`.md`、`.pdf`、`.docx`、`.csv`、`.tsv`、`.json`、`.html`、`.htm`、`.rtf`，均可上传、下载、预览和建立索引。
+
+- 每份最多 **5 MB**。文本、表格文本、JSON、HTML 使用 UTF-8；JSON 校验语法。
+- DOCX 提取主文档段落和表格，RTF 提取文字；HTML 不执行脚本或加载外部资源。
+- PDF 须未加密、最多 500 页；只读取文本层，不支持扫描件 OCR。
+- 预览最多 40000 字符，PDF 预览前 20 页。索引最多 4000 字符、PDF 最多 50 页，超限需拆分；上传成功不代表可以完整索引。
+- 不支持旧 `.doc`、带宏 Office 文件、`.xlsx`、`.pptx`；请导出 DOCX、CSV 或 PDF，不能只改后缀。
+
+## 环境和配置
+
+需要 Docker Desktop（Windows 使用 Linux 容器）、Java 17、Node.js 22.12+ 或兼容的 24 LTS、Python 3。构建在宿主机执行，部署后不需要 IDEA 或 Vite 常驻。
+
+在项目根目录初始化配置：Windows 使用 `python scripts/init-db-env.py`，macOS 使用 `python3 scripts/init-db-env.py`。已有密码会保留。
+
+在 `docker/.env` 添加或更新以下值，不要覆盖原来的数据库、JWT、MinIO 配置，也不要提交此文件：
+
+```dotenv
+LLM_ENDPOINT=https://open.bigmodel.cn/api/paas/v4/chat/completions
+LLM_MODEL=glm-4.7-flash
+LLM_API_KEY=你的智谱密钥
+LLM_TOKEN_PARAMETER=max_tokens
+LLM_THINKING=disabled
+EMBEDDING_ENDPOINT=https://api.siliconflow.cn/v1/embeddings
+EMBEDDING_MODEL=BAAI/bge-m3
+EMBEDDING_API_KEY=你的硅基流动密钥
+RERANK_ENDPOINT=https://api.siliconflow.cn/v1/rerank
+RERANK_MODEL=BAAI/bge-reranker-v2-m3
+RERANK_API_KEY=你的硅基流动密钥
 ```
 
-打开终端显示的本地地址。`npm run build` 检查并生成生产构建。
+普通聊天需要 LLM；索引和知识库问答还需要 Embedding。Rerank 是现有高级检索接口的可选配置，统一问答默认使用向量检索。两家服务密钥不能互换；配置示例也见 `docker/.env.*.example`。
 
-## 启动数据库和后端
+## Docker 完整部署
 
-需要 Docker Desktop 与 Java 17。先运行 `java -version`，确认当前终端使用的是 Java 17；修改过 `JAVA_HOME` 或 `PATH` 后需要关闭并重新打开终端。
+### Windows PowerShell
 
-### Windows PowerShell（推荐）
-
-在项目根目录运行：
+打开 Docker Desktop，在项目根目录执行，每一步成功再继续：
 
 ```powershell
+cd "D:\知识库系统\-ai-"
+java -version
+docker version
 python scripts/init-db-env.py
-docker compose --env-file docker/.env -f docker/compose.yml up -d --build --wait
-.\scripts\backend.ps1 spring-boot:run
+if ($LASTEXITCODE -ne 0) { throw '配置初始化失败' }
+npm ci --prefix frontend
+if ($LASTEXITCODE -ne 0) { throw '前端依赖安装失败' }
+npm run build --prefix frontend
+if ($LASTEXITCODE -ne 0) { throw '前端构建失败' }
+.\scripts\backend.ps1 -DskipTests package
+if ($LASTEXITCODE -ne 0) { throw '后端打包失败' }
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml config --quiet
+if ($LASTEXITCODE -ne 0) { throw '部署配置无效' }
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml up -d --build --wait --wait-timeout 180
+if ($LASTEXITCODE -ne 0) { throw '容器启动失败，请查看日志' }
+python scripts/check-deployment.py
 ```
 
-`backend.ps1` 会读取 `docker/.env`、检查 Java 版本并调用 Windows Maven Wrapper。不要在 PowerShell 中直接运行 `scripts/backend.sh`；它是给 Unix Shell 使用的脚本。首次运行 Maven Wrapper 会下载 Maven，可能需要几分钟。
+### macOS
 
-### macOS、Linux 或 Git Bash
-
-在项目根目录运行：
+打开 Docker Desktop，在项目根目录执行：
 
 ```bash
-python3 scripts/init-db-env.py
-docker compose --env-file docker/.env -f docker/compose.yml up -d --build --wait
-./scripts/backend.sh spring-boot:run
+java -version
+docker version
+python3 scripts/init-db-env.py && \
+npm ci --prefix frontend && \
+npm run build --prefix frontend && \
+./scripts/backend.sh -DskipTests package && \
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml config --quiet && \
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml up -d --build --wait --wait-timeout 180 && \
+python3 scripts/check-deployment.py
 ```
 
-如果 Git Bash 首次运行出现 `CRYPT_E_REVOCATION_OFFLINE` 或 `curl: Failed to fetch`，请改用上面的 Windows PowerShell 方式，避免为 Git 或 curl 全局关闭证书吊销检查。
+成功后访问 **http://127.0.0.1:8088**。部署复用本机 `ai-knowledge` 工程的数据卷，不要随意更改工程名。入口只监听本机，没有配置公网 HTTPS。
 
-### Windows IDEA 启动
+`-DskipTests` 跳过测试运行，不代表测试通过。检查脚本只读检查页面、静态资源、路由与 API，不调用模型。首次使用请登录，上传小文档并建立索引，分别验证知识库问题与普通问题。
 
-命令行和 IDEA 是两种独立的启动方式，不必同时运行，也不需要只能点击运行按钮。
+### 日常启停、更新与日志（两端相同）
 
-1. 先在项目根目录运行上面的初始化和 Docker Compose 命令，确保 Docker Desktop 已启动。
-2. 在 IDEA 打开项目，将 `backend/pom.xml` 添加为 Maven 项目并重新加载。项目 SDK、Maven 导入器 JDK、运行配置 JRE 均选择 Java 17。本机 JDK 路径为 `D:\Java JDK\17`。
-3. 在“运行 → 编辑配置”中选择或新建 Application 配置 `AiKnowledgeApplication`。主类填写 `com.example.aiknowledge.AiKnowledgeApplication`，模块选择 `ai-knowledge-backend`。
-4. 工作目录设为本项目的 `backend` 目录。本机为 `D:\知识库系统\-ai-\backend`；不要使用旧路径 `D:\知识库系统-ai-`。
-5. 在“修改选项”中显示 VM options，填入下面这一行，让 IDEA 读取本地配置文件（不是 Program arguments）：
+```bash
+# 日常启动
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml up -d --wait
+# 查看状态
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml ps
+# 查看日志
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml logs --tail 80 backend web
+# 停止，保留数据
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml stop
+```
+
+更新代码后重复对应系统的构建部署步骤。更新前等待索引任务完成。只执行 `restart` 不会更新镜像或环境变量。不要执行 `down -v`，它会删除数据卷。端口冲突可在 `.env` 设置 `APP_PORT=8089`，重新创建容器，并用新地址执行检查脚本。
+
+## 本地开发
+
+开发入口为前端终端显示的地址（通常 5173），后端为 8080；与 Docker 部署的 8088 入口分开。日常推荐选择一种入口。
+
+Windows PowerShell，项目根目录：
+
+```powershell
+docker compose --env-file docker/.env -f docker/compose.yml up -d --build --wait
+.\scripts\backend.ps1 spring-boot:run
+# 另开终端
+npm ci --prefix frontend
+npm run dev --prefix frontend
+```
+
+macOS，项目根目录：
+
+```bash
+docker compose --env-file docker/.env -f docker/compose.yml up -d --build --wait
+./scripts/backend.sh spring-boot:run
+# 另开终端
+npm ci --prefix frontend
+npm run dev --prefix frontend
+```
+
+IDEA：将 `backend/pom.xml` 导入 Maven，项目 SDK、Maven JDK 和运行 JRE 都选 Java 17。主类为 `com.example.aiknowledge.AiKnowledgeApplication`，模块为 `ai-knowledge-backend`，工作目录为 `backend`，VM options 添加：
 
 ```text
 -Dspring.config.import=file:../docker/.env[.properties]
 ```
 
-6. 移除运行配置中重复且过期的 `LLM_*` 环境变量，避免它们覆盖文件里的新值。点击运行，看到 `Started AiKnowledgeApplication` 后访问 `http://localhost:8080/api/health`。返回正常只代表后端存活，不代表数据库和模型都已验证。
+两端均需移除 IDEA 中覆盖文件的旧模型环境变量。修改 `.env` 后重启后端。Windows 使用 `backend.ps1`，macOS 使用 `backend.sh`。
 
-本机此前打开的是父目录 `D:\知识库系统`，已在其 `.idea` 中配置 Maven 项目和上述运行项；如 IDEA 未显示，请重新打开项目或重新加载 Maven。更换电脑后按实际路径重新设置。
+## 账号和管理员
 
-### Windows 常见启动问题
-
-- `java.exe : openjdk version ... NativeCommandError`：这是 Windows PowerShell 5.1 把 Java 正常输出到错误流的版本信息当成错误。项目脚本已兼容此情况，使用更新后的 `scripts/backend.ps1`，不需要重装 Java。
-- 禁止运行脚本：可仅对这次启动执行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\backend.ps1 spring-boot:run`，不修改全局执行策略。
-- Java 版本不对：关闭并重开终端和 IDEA。需要临时指定本机 JDK 时，在当前 PowerShell 中执行下面两行，然后再启动后端。
+在 `/register` 注册，再登录。新账号为 USER。把 `learner` 替换为已注册用户名：
 
 ```powershell
-$env:JAVA_HOME = 'D:\Java JDK\17'
-$env:Path = "$env:JAVA_HOME\bin;$env:Path"
-.\scripts\backend.ps1 spring-boot:run
+# Windows：预览，再应用
+python scripts/set-user-role.py --username learner --role ADMIN
+python scripts/set-user-role.py --username learner --role ADMIN --apply
 ```
-
-- `8080 already in use`：先停止另一份后端。命令行使用 `Ctrl+C`，IDEA 使用停止按钮，再选择一种方式启动。
-- 仅在出现 `Unable to establish loopback connection` 等本地套接字错误时，可尝试给 IDEA VM options 加上 `-Djdk.net.unixdomain.tmpdir=C:/codex-no-unix-sockets`。该路径须不存在，让 JDK 回退到 TCP；不是普通启动的必填项。
-- 修改 `docker/.env` 后必须停止并重新启动后端，仅刷新网页不会重新加载配置。
-
-### GLM 配置与排查
-
-编辑已有 `docker/.env`，添加或更新下面这些键；不要覆盖原来的数据库、JWT、MinIO 配置，也不要重复添加同名键：
-
-```dotenv
-LLM_ENDPOINT=https://open.bigmodel.cn/api/paas/v4/chat/completions
-LLM_API_KEY=替换为自己的真实密钥
-LLM_MODEL=glm-4.7-flash
-LLM_TOKEN_PARAMETER=max_tokens
-LLM_THINKING=disabled
-```
-
-PowerShell 启动脚本会载入此文件；IDEA 需按上文设置 `spring.config.import`。模型配置读取现已兼容成对的单引号或双引号。旧版 Windows 脚本和 IDEA properties 导入会保留引号，导致明明填了密钥仍显示“模型尚未配置”；更新代码并重启即可应用修复，无须因此重新申请密钥。
-
-登录后打开 AI 对话页。在浏览器开发者工具的网络面板检查 `/api/chat/config`：`configured: true` 表示本地配置格式通过检查，并不证明密钥有效。发送一次简单问题，收到模型回答才是完整验收。
-
-- “模型尚未配置”：检查启动方式是否读取了 `.env`、密钥是否为空、是否已重启以及是否连接到了旧后端。
-- “模型服务拒绝访问”：检查密钥和模型访问权限。
-- “限流或额度不足”：检查服务商账户用量。
-- “无法取得模型回复”或超时：检查网络、接口地址和服务状态。
-
-不要把密钥放在前端、提交到 Git 或粘贴到报错截图中。
-
-### Windows 与 Mac 的账号
-
-两台电脑各自运行本地 MySQL 时，数据库和账号不会自动同步，因此 Mac 注册的账号默认不能在 Windows 登录。可在 Windows 重新注册测试账号；若要共用数据，需要另行配置同一个受保护的数据库服务，或安全迁移数据库备份。不要直接向公网开放本机 MySQL。
-
-密码保存在被 Git 忽略的 `docker/.env`，不要删除或提交它。MySQL 监听本机 3307，后端 8080；前端开发代理转发 `/api` 请求到后端。命名卷保存数据库，勿使用 `down -v` 删除数据。
-
-`GET /api/health` 仍是基础服务存活检查，不检查数据库健康。
-
-只启动一份后端，避免与 IDEA 抢占 8080。更新代码后需要重启后端，以应用新增迁移和接口。文档入口为 `/documents`，支持单个最多 5 MB 的 TXT / Markdown / PDF / DOCX 文件及下载。文本需为 UTF-8，PDF 需未加密且不超过 500 页；DOCX 的结构及解压限制见第二十课。MinIO API 为本机 9000，控制台为 9001；首次从固定源码版本构建可能需要数分钟。IDEA 按上文导入配置文件后即可读取其中的 MinIO 凭据。
-
-旧文件默认位于 `backend/uploads/documents`，可用 `DOCUMENT_STORAGE_DIR` 指定原目录绝对路径。运行 `scripts/migrate-documents.sh preview` 预览，再用 `scripts/migrate-documents.sh apply` 迁移；复制校验后切换记录，保留本地备份。原文件与密钥不提交到 Git。含文档的知识库暂不允许删除。MinIO 社区发行状态、构建及详细配置见第十九课。
-
-Windows PowerShell 运行 `.\scripts\backend.ps1 test`，macOS、Linux 或 Git Bash 运行 `./scripts/backend.sh test`，使用独立 MySQL 测试库。MinIO 测试使用随机私有桶并在结束后清理，需先启动两个容器。前端 `npm test` 验证共享状态和错误处理。
-
-上传上限现为 5 MB（5,242,880 字节），重启新版后端会应用 V9 数据库约束迁移。正文预览、索引字数与 DOCX 解压限制仍按对应课程执行；上传成功不代表一定满足索引限制。已上传的旧练习文件不会随 Git 中的练习材料自动更新。
-
-## Redis 启动与关闭
-
-先启动 Docker Desktop。以下命令均在项目根目录执行，只操作 Redis 服务，不停止 MySQL、MinIO、Qdrant 或后端。
-
-### macOS / Linux / Git Bash
 
 ```bash
-# 启动（首次会下载镜像）
-docker compose --env-file docker/.env -f docker/compose.yml up -d --wait redis
-# 查看运行状态
-docker compose --env-file docker/.env -f docker/compose.yml ps redis
-# 检查连通性，正常返回 PONG
-docker compose --env-file docker/.env -f docker/compose.yml exec redis redis-cli ping
-# 停止
-docker compose --env-file docker/.env -f docker/compose.yml stop redis
-# 重启已创建的容器
-docker compose --env-file docker/.env -f docker/compose.yml restart redis
+# macOS：预览，再应用
+python3 scripts/set-user-role.py --username learner --role ADMIN
+python3 scripts/set-user-role.py --username learner --role ADMIN --apply
 ```
 
-### Windows PowerShell
+编辑者使用 `EDITOR`，恢复普通账号使用 `USER`。脚本替换全部角色、不修改密码，需要 MySQL 容器运行。变更后重新登录刷新前端；后端按最新权限授权。
 
-先打开 Docker Desktop，使用 Linux 容器，然后在项目根目录的 PowerShell 执行：
+Windows 与 Mac 独立部署不会自动同步账号、原文件或索引。共用 Mac 数据见 [跨电脑访问说明](docs/windows-shared-data.md)。
 
-```powershell
-# 启动（首次会下载镜像）
-docker compose --env-file .\docker\.env -f .\docker\compose.yml up -d --wait redis
-# 查看运行状态
-docker compose --env-file .\docker\.env -f .\docker\compose.yml ps redis
-# 检查连通性，正常返回 PONG
-docker compose --env-file .\docker\.env -f .\docker\compose.yml exec redis redis-cli ping
-# 停止
-docker compose --env-file .\docker\.env -f .\docker\compose.yml stop redis
-# 重启已创建的容器
-docker compose --env-file .\docker\.env -f .\docker\compose.yml restart redis
-```
+## 常见问题与测试
 
-如果提示缺少 `docker/.env`，先按前文运行初始化脚本：macOS/Linux 使用 `python3 scripts/init-db-env.py`，Windows 使用 `python scripts/init-db-env.py`。已有配置无需重复初始化。
+- 找不到 `docker`：确认 Docker Desktop 已安装且 CLI 加入 PATH，重开终端；连接失败时确认引擎已启动。
+- Java 版本错误：配置 `JAVA_HOME` 和 PATH。Windows 本机 JDK 为 `D:\Java JDK\17`；macOS 可用 `export JAVA_HOME=$(/usr/libexec/java_home -v 17)`。
+- PowerShell 禁止脚本：可单次运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\backend.ps1 spring-boot:run`。脚本兼容 PowerShell 5.1 Java 版本输出。
+- 模型未配置：确认读取正确 `.env` 并重启。Docker 用 `up -d` 重新创建环境有变化的容器；密钥权限、账户额度和网络错误分别排查。
+- 知识库没有回答：确认有成功索引、模型空间兼容、检索范围正确。自动模式会标记普通回答；需要原文依据时选择“仅知识库”。
+- 超长文档无法索引：拆分后重新上传；扫描 PDF 需先 OCR。
 
-Redis 在宿主机监听 `127.0.0.1:6380`，容器内部为 `6379`。本项目关闭了 Redis 磁盘持久化，停止后再次启动或重启 Redis 会丢失缓存；原文件、MySQL 数据和 Qdrant 索引不会因此删除。默认 Redis 模式下，缓存不可用时后端会直接计算问题向量并显示降级提示。
+前端测试：`npm test --prefix frontend`。后端完整测试需要数据服务，Windows 使用 `.\scripts\backend.ps1 test`，macOS 使用 `./scripts/backend.sh test`；使用独立测试库，模型测试使用模拟服务。
 
-如果 Windows 只是通过隧道访问 Mac 后端，Redis 也运行在 Mac，应在 Mac 执行启停命令；不必在 Windows 再启动一份。只有 Windows 独立运行本项目后端时，才在 Windows 启动自己的 Redis。两台机器各自启动的 Redis 不会自动共享缓存。
+更多原理见 [学习手册](docs/learning-manual.md) 和 [第 39 课部署讲义](docs/lesson-39.md)。历史课程中的旧入口以本 README 为准。
 
-## 目录
+## Git
 
-- `frontend/`：Vue 前端代码。
-- `backend/`：Spring Boot + MyBatis-Plus + MySQL 后端。
-- `docker/`：MySQL 与 MinIO 开发容器、测试库初始化。
-- `docs/`：学习手册、课程与进度记录。
-
-## 学习资料
-
-- [完整学习手册](docs/learning-manual.md)
-- [学习进度与教学偏好](docs/learning-progress.md)
-- [第 1 课：让数据变成知识库页面](docs/lesson-01.md)
-
-- [第 2 课：新建知识库，让页面响应操作](docs/lesson-02.md)
-
-- [第 3 课：Vue Router，让地址决定页面](docs/lesson-03.md)
-
-- [第 4 课：用 Props 和 Emit 让组件协作](docs/lesson-04.md)
-
-- [第 5 课：用 computed 计算搜索结果](docs/lesson-05.md)
-
-- [第 6 课：Pinia，让多个页面共享状态](docs/lesson-06.md)
-
-- [第 7 课：异步加载、失败与重试](docs/lesson-07.md)
-
-- [第 8 课：Spring Boot，第一个真实 HTTP 接口](docs/lesson-08.md)
-
-- [第 9 课：知识库 API 与 Controller / Service 分工](docs/lesson-09.md)
-
-- [第 10 课：Vue 通过 Axios 连接真实后端](docs/lesson-10.md)
-
-- [第 11 课：MySQL 持久化与 Mapper](docs/lesson-11.md)
-
-- [第 12 课：修改与删除，完成知识库 CRUD](docs/lesson-12.md)
-
-- [第 13 课：创建用户与密码哈希](docs/lesson-13.md)
-
-- [第 14 课：登录验证与 JWT 登录状态](docs/lesson-14.md)
-
-账号创建入口为 /register，登录入口为 /login。升级后先运行初始化脚本补充 JWT_SECRET，再启动后端；已有凭据保留。登录状态仅在内存保存，刷新需要重新登录。第十五课已保护知识库全部增删改查接口；未登录访问业务页面会跳转到登录页。知识库仍为共享数据；第十六课起普通用户只读，管理员可管理。第十七课迁移保留已有角色；新账号默认 USER，支持 EDITOR 和多角色，角色设置脚本的当前用法见第十七课。后续按照手册推进路由、Spring Boot、MySQL、登录与权限、文档管理、LLM 问答与 RAG、测试及部署。
-
-- [第 15 课：保护知识库接口与前端路由](docs/lesson-15.md)
-
-- [第 16 课：普通用户与管理员，开始角色授权](docs/lesson-16.md)
-
-- [第 17 课：角色与权限关系表（RBAC）](docs/lesson-17.md)
-
-- [第 18 课：第一个文档上传闭环](docs/lesson-18.md)
-
-- [第 19 课：MinIO 对象存储与原文件下载](docs/lesson-19.md)
-
-- [第 20 课：PDF、DOCX 上传与格式校验](docs/lesson-20.md)
-
-- [第 21 课：基础 LLM Chat，接入 GLM-4.7-Flash](docs/lesson-21.md)
-
-AI 问答已接入后端非流式模型接口，默认使用智谱免费模型 `glm-4.7-flash` 普通对话模式。将智谱 API Key 填入本地 `docker/.env` 的 `LLM_API_KEY`，然后重启后端并重新登录即可试用；完整配置示例见 `docker/.env.llm.example` 与第二十一课。如果之前配置过其他服务商，还需替换旧的 `LLM_ENDPOINT`、`LLM_MODEL` 和密钥。密钥不能写进前端或提交到 Git。未配置时页面显示提示；当前对话不读取知识库文件，离开页面后清空记录。模型自动测试使用本地模拟服务，真实账户需配置后验收。
-
-- [第 22 课：SSE 流式输出，让回复逐步出现](docs/lesson-22.md)
-
-第 22 课起，AI 问答默认使用 `/api/chat/stream` 流式接口，支持停止接收和未完成回复标记。完整回答才进入下一轮上下文；保留原非流式接口用于学习对照。更新后需重启后端，智谱配置继续沿用。
-
-- [第 23 课：提取文档正文，开始 RAG 文档处理](docs/lesson-23.md)
-
-文档管理新增“查看正文”：从原文件提取只读文字预览，最多 40000 字符，PDF 限前 20 页文本层。扫描图片不做 OCR，DOCX 仅提取主文档段落和表格文字；预览不会保存索引或进入 AI 问答。更新后重启后端即可使用，无新增数据库迁移。
-
-- [第 24 课：文本分块，观察块大小与重叠](docs/lesson-24.md)
-
-文档管理新增“分块预览”：可调整块上限与目标重叠，高亮相邻块重复的文字。单位为 UTF-16 字符，不是 token；继续沿用正文预览范围并显示截断标记。可上传 [练习材料](docs/samples/chunking-demo.md) 比较参数效果。本课不保存分块或向量，更新后需重启后端。
-
-- [第 25 课：Embedding，用硅基流动生成向量并比较文字](docs/lesson-25.md)
-
-侧栏新增“向量实验”，默认使用硅基流动免费模型 `BAAI/bge-m3`。按 `docker/.env.embedding.example` 填写独立的 Embedding 密钥并重启后端；无需下载本地模型。页面比较问题与三段文字的余弦相似度，尚不保存向量。后续可以通过独立的地址、模型和密钥配置接入格式兼容的收费服务。
-
-- [第 26 课：Qdrant，让向量保存下来并支持检索](docs/lesson-26.md)
-
-向量实验新增“保存后检索”，每个账号有独立的练习集合。运行 `docker compose -f docker/compose.yml up -d qdrant` 并重启后端，沿用硅基流动 Embedding 配置；保存候选文字后，刷新并重新登录仍能检索。文字与向量存入 Docker 命名卷，尚未自动索引上传文件。
-
-- [第 27 课：为文档建立索引](docs/lesson-27.md)
-
-文档管理新增“文档索引”：编辑者和管理员可手动建立正文索引，普通用户查看状态。重启后端应用 V8 并重新登录；沿用硅基流动配置与 Qdrant。限正文 4000 字符、PDF 50 页，超限明确拒绝，重建失败保留旧成功版本。练习文件见 `docs/samples/indexing-demo.md`。
-
-- [第 28 课：检索已发布的文档片段](docs/lesson-28.md)
-
-文档索引面板新增问题检索，返回最多三个原文片段、来源和相似度。只查询该文档已发布且模型兼容的集合；需要同时拥有文档读取与 AI 对话权限。无新增迁移，重启后端即可使用，已有成功索引可继续沿用。
-
-- [第 29 课：RAG 文档问答](docs/lesson-29.md)
-
-文档索引面板新增“基于文档回答”，重新检索最多三个片段后交给 GLM，并校验引用编号。需要同时配置硅基流动 Embedding 与智谱 LLM 的独立密钥；无新增迁移，重启后端即可沿用已有索引。资料不足时明确提示，答案附原文供核对。
-
-- [第 30 课：知识库多文档检索与问答](docs/lesson-30.md)
-
-文档管理中选定知识库后，可以检索最多 5 份模型兼容的成功索引。问题仅生成一次向量，各文档候选合并排序、按完全相同的原文去重，最多取三段交给 GLM。页面显示参与数量、跳过原因与跨文档来源。无新增迁移，重启后端后体验。
-
-- [第 31 课：检索评估，先判断有没有找到正确资料](docs/lesson-31.md)
-
-知识库问答新增可选的预期文档标注，展示文档覆盖率和倒数排名。标注只留在前端，不影响原检索，也不作为模型上下文；命中文档不等于答案正确。本课只更新前端，无需重启后端。
-
-- [第 32 课：混合检索，让关键词补充向量候选](docs/lesson-32.md)
-
-知识库问答可以切换向量与混合检索。混合模式输入 1–5 个关键词，扫描当前成功索引原文，用 RRF 合并两路排名，再取最多三个片段。无需新模型或索引迁移；需重启新版后端。结合第 31 课评估实际效果，不保证混合模式总是更好。
-
-- [第 33 课：候选重排，使用硅基流动 BGE Reranker](docs/lesson-33.md)
-
-知识库问答提供默认关闭的 BGE 重排，使用硅基流动 BAAI/bge-reranker-v2-m3，从最多六段候选中选择三段，并显示前后对照。按 docker/.env.rerank.example 配置独立的 RERANK_* 参数并重启后端；可使用硅基流动已有 API Key，GLM 只负责生成答案。无数据库迁移或重建索引要求。
-
-- [第 34 课：检索耗时统计，看清时间花在哪里](docs/lesson-34.md)
-
-知识库结果新增“本次耗时”，分别显示向量生成、文档检索、原文扫描、重排和生成的执行次数与累计时间。统计后端业务处理，不含浏览器网络与渲染；本课尚未引入缓存。重启后端即可使用，无迁移或新配置。
-
-- [第 35 课：问题向量缓存，观察命中与失效](docs/lesson-35.md)
-
-知识库问答默认复用同一用户、同一模型空间下的问题向量，内存缓存有效期五分钟、容量 128 条，并支持本次跳过。命中仍重新检索和生成答案。重启后端加载功能并清空旧内存，无新增配置或迁移。
-
-- [第 36 课：Redis 共享缓存与故障降级](docs/lesson-36.md)
-- [第 37 课：后台索引任务与自动查询状态](docs/lesson-37.md)
-- [第 38 课：有限重试与过期任务恢复](docs/lesson-38.md)
-- [第 39 课：Docker 完整应用部署](docs/lesson-39.md)
-- [后续学习安排：下一课先部署](docs/next-learning-plan.md)
-
-默认使用 Redis 保存问题向量。运行 `docker compose --env-file docker/.env -f docker/compose.yml up -d --wait redis` 并重启后端；Redis 监听本机 6380，无需新密钥。有效期五分钟，缓存故障显示降级并直接计算，保留 `VECTOR_CACHE_BACKEND=memory` 供对照。后端测试还需启动 Redis，独立随机测试键会在结束后清理。
-
-## Git 约定
-
-每次完成一批改动后，验证、提交并推送一次。使用已有 Git 身份，不强制推送。
-
-远程仓库：`git@github.com:chaofengming123/-ai-.git`。
+默认分支 `codex/initialize`，完成改动并验证后提交、推送到 `origin/codex/initialize`。远程仓库为 `git@github.com:chaofengming123/-ai-.git`，不提交密钥、原文件、数据卷或生成产物。

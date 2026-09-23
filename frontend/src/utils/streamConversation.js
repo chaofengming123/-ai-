@@ -26,12 +26,16 @@ export function createStreamConversation(sendRequest, getSessionVersion) {
       if (!active()) return
       if (signal.aborted) throw new Error('已停止接收。')
       if (!answer.content.trim()) throw new Error('模型没有返回有效文本。')
+      answer.mode = result.mode
+      answer.sources = result.sources || []
+      answer.notice = result.notice || ''
       // 只有收到 done 后才提交上下文；被截断的回复也不进入下一轮。
       if (result.truncated) {
         answer.incomplete = true
         notice.value = '回复达到输出上限，本轮未加入后续上下文。请缩小问题范围。'
       } else {
-        history = [...request, { role: 'assistant', content: answer.content }]
+        // Knowledge answers must be retrieved again, never recycled as unsourced general-chat facts.
+        history = result.mode === 'knowledge' ? [] : [...request, { role: 'assistant', content: answer.content }]
         draft.value = ''
       }
     } catch (failure) {

@@ -92,6 +92,20 @@ class ChatApiTests {
         return HttpClient.newHttpClient().send(builder.build(),HttpResponse.BodyHandlers.ofString());
     }
     String question="{\"messages\":[{\"role\":\"user\",\"content\":\"解释 Controller\"}]}";
+    @Test void unifiedEndpointIsProtectedAndStreamsModeMetadata() throws Exception {
+        assertEquals(401,request("POST","/api/chat/assistant",question,null).statusCode());
+        signIn(); streaming=true; response=FIRST+LAST;
+        String body=question.substring(0,question.length()-1)+",\"mode\":\"general\"}";
+        var result=request("POST","/api/chat/assistant",body,token);
+        assertEquals(200,result.statusCode(),result.body());
+        assertTrue(result.body().contains("event: done"));
+        assertTrue(result.body().contains("\"mode\":\"general\""));
+        assertTrue(result.body().contains("\"sources\":[]"));
+        jdbc.update("DELETE FROM app_user_role WHERE user_id=?",userId);
+        int before=calls.get();
+        assertEquals(403,request("POST","/api/chat/assistant",body,token).statusCode());
+        assertEquals(before,calls.get());
+    }
     @Test void authenticatedChatUsesServerCredentialsAndPrependsSystemMessage() throws Exception {
         signIn();
         var config=request("GET","/api/chat/config",null,token);

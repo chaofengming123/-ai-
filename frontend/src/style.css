@@ -172,3 +172,25 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
 .chunk-item { margin-top: 12px; border-top: 1px solid #e1e9e5; padding-top: 12px; }
 .chunk-item summary { cursor: pointer; font-weight: 600; }
 .chunk-item mark { background: #fff0b2; color: inherit; }
+.assistant-toolbar { display: flex; flex-wrap: wrap; gap: 20px; align-items: end; padding: 20px; margin: 24px 0; background: #fff; border: 1px solid #dfe7e1; border-radius: 12px; }
+.assistant-toolbar label { display: grid; gap: 8px; font-size: 13px; font-weight: 600; min-width: 160px; }
+.assistant-toolbar select { max-width: 100%; padding: 10px 12px; border: 1px solid #bccdc2; border-radius: 8px; background: #f8faf8; font: inherit; }
+.document-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; color: #63736b; font-size: 13px; line-height: 1.8; }
+.document-summary .page-link { margin-top: 0; }
+.document-actions { flex-shrink: 1; }
+.document-list li > div:first-child { min-width: 0; }
+.answer-notice { display: block; margin-top: 10px; line-height: 1.7; color: #63736b; }
+.answer-source { margin-top: 12px; padding: 12px; border: 1px solid #cdded2; border-radius: 8px; background: #fff; }
+.answer-source summary { cursor: pointer; overflow-wrap: anywhere; font-size: 13px; font-weight: 600; }
+.answer-source p { font-size: 13px; }
+.workspace-shortcuts { display: flex; flex-wrap: wrap; gap: 12px; }
+.chat-message.assistant { margin-right: 5%; }
+.chat-message.user { margin-left: 10%; }
+.chat-message .demo-badge { display: inline-block; margin-top: 12px; }
+@media (max-width: 700px) {
+  .assistant-toolbar { align-items: stretch; flex-direction: column; }
+  .assistant-toolbar label { min-width: 0; }
+  .chat-message.assistant, .chat-message.user { margin-left: 0; margin-right: 0; }
+  .document-actions { justify-content: flex-start; }
+  .account-controls { flex-wrap: wrap; font-size: 12px; }
+}

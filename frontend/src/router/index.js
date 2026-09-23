@@ -10,6 +10,7 @@ import NotFoundView from '../views/NotFoundView.vue'
 
 import { useAuthStore } from '../stores/auth.js'
 import { authGuard } from './authGuard.js'
+import { canVisit } from '../utils/permissions.js'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -29,7 +30,13 @@ const router = createRouter({
   },
 })
 
-router.beforeEach(to => authGuard(to, useAuthStore().isLoggedIn))
+router.beforeEach(to => {
+  const auth = useAuthStore()
+  const result = authGuard(to, auth.isLoggedIn)
+  if (result !== true) return result
+  if (auth.isLoggedIn && !canVisit(auth.user, to.path)) return { path: '/dashboard', replace: true }
+  return true
+})
 
 router.afterEach(to => {
   document.title = `${to.meta.title} · AI Knowledge`

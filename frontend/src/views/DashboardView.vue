@@ -3,11 +3,13 @@ import { onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useKnowledgeBaseStore } from '../stores/knowledgeBases.js'
+import { useAuthStore } from '../stores/auth.js'
+const auth = useAuthStore()
 
 const knowledgeBaseStore = useKnowledgeBaseStore()
 const { knowledgeBaseCount, isLoading, loadError, hasLoaded } = storeToRefs(knowledgeBaseStore)
 onMounted(() => {
-  if (!hasLoaded.value) knowledgeBaseStore.loadKnowledgeBases()
+  if (auth.canReadKnowledgeBases && !hasLoaded.value) knowledgeBaseStore.loadKnowledgeBases()
 })
 </script>
 
@@ -17,10 +19,10 @@ onMounted(() => {
       <div>
         <p class="eyebrow">团队知识空间</p>
         <h1 id="dashboard-title">工作台</h1>
-        <p class="page-description">从整理团队知识开始。</p>
+        <p class="page-description">{{ auth.user?.username }}，欢迎回来。当前身份：{{ auth.roleLabel }}。</p>
       </div>
     </div>
-    <div class="overview-stat" aria-label="知识库统计">
+    <div v-if="auth.canReadKnowledgeBases" class="overview-stat" aria-label="知识库统计">
       <span>知识库总数</span>
       <strong v-if="hasLoaded">{{ knowledgeBaseCount }}</strong>
       <p v-if="isLoading" role="status">正在加载知识库统计…</p>
@@ -31,9 +33,12 @@ onMounted(() => {
       <p>统计本次读取的数据库记录。刷新页面或重启后端不会清空。</p>
     </div>
     <div class="empty-panel">
-      <h2>建立你的知识库</h2>
-      <p>按业务领域整理资料。当前可以查看示例知识库，或创建一个知识库。</p>
-      <RouterLink to="/knowledge-bases" class="primary-button page-link">前往知识库</RouterLink>
+      <h2>{{ auth.canCreateKnowledgeBases ? '管理团队知识' : '查阅与提问' }}</h2>
+      <p>{{ auth.canCreateKnowledgeBases ? '创建知识库、上传资料并建立索引，为团队提供可追溯的答案。' : '浏览有权查看的资料，或在 AI 问答中查询所需信息。' }}</p>
+      <div class="workspace-shortcuts">
+        <RouterLink v-if="auth.user?.permissions?.includes('chat:send')" to="/chat" class="primary-button page-link">开始提问</RouterLink>
+        <RouterLink v-if="auth.canReadKnowledgeBases" to="/knowledge-bases" class="secondary-button page-link">浏览知识库</RouterLink>
+      </div>
     </div>
   </section>
 </template>

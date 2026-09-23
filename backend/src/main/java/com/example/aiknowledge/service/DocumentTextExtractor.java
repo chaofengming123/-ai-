@@ -42,6 +42,13 @@ public final class DocumentTextExtractor {
                         stripper.setStartPage(1); stripper.setEndPage(pages);
                         stripper.writeText(pdf,output);
                     }
+                } else if(type.equals("rtf")) {
+                    var kit=new javax.swing.text.rtf.RTFEditorKit();
+                    var document=kit.createDefaultDocument();
+                    kit.read(new ByteArrayInputStream(bytes),document,0);
+                    output.write(document.getText(0,document.getLength()));
+                } else if(type.equals("html") || type.equals("htm")) {
+                    html(new String(bytes,StandardCharsets.UTF_8),output);
                 } else output.write(new String(bytes,StandardCharsets.UTF_8));
             }
         } catch(PreviewLimit reached) {
@@ -59,12 +66,38 @@ public final class DocumentTextExtractor {
         String note=switch(type) {
             case "pdf" -> "仅提取 PDF 文本层，不识别扫描图片；多栏和表格的阅读顺序可能不准确。";
             case "docx" -> "提取主文档段落和表格中的文字；不含页眉页脚、图片、批注、文本框、自动编号或完整排版。";
+            case "html","htm" -> "仅提取 HTML 文字，不执行脚本、不加载外部链接或图片。";
+            case "rtf" -> "仅提取 RTF 文字，不保留样式、图片或嵌入对象。";
+            case "csv","tsv" -> "按 UTF-8 读取表格文本，保留分隔符；不会执行单元格公式。";
+            case "json" -> "按 UTF-8 读取 JSON，保留字段名与结构。";
             default -> "按 UTF-8 读取文字，Markdown 保留原始标记。";
         };
         if(pageLimited) note+=" 本次只读取前 20 页。";
         if(output.truncated) note+=" 正文超过 40000 字符，预览已截断。";
         if(content.isBlank()) { content=""; note+=" 当前预览范围未提取到文字，不表示原文件没有内容。"; }
         return new Text(content,pageLimited || output.truncated,note);
+    }
+    private static void html(String source,Writer output) throws IOException {
+        try {
+            new javax.swing.text.html.parser.ParserDelegator().parse(new StringReader(source),
+                new javax.swing.text.html.HTMLEditorKit.ParserCallback() {
+                    int hidden;
+                    private void write(String value) {
+                        try { output.write(value); } catch(IOException error) { throw new UncheckedIOException(error); }
+                    }
+                    @Override public void handleStartTag(javax.swing.text.html.HTML.Tag tag,javax.swing.text.MutableAttributeSet attributes,int position) {
+                        if(tag==javax.swing.text.html.HTML.Tag.SCRIPT || tag==javax.swing.text.html.HTML.Tag.STYLE) hidden++;
+                    }
+                    @Override public void handleEndTag(javax.swing.text.html.HTML.Tag tag,int position) {
+                        if(tag==javax.swing.text.html.HTML.Tag.SCRIPT || tag==javax.swing.text.html.HTML.Tag.STYLE) hidden=Math.max(0,hidden-1);
+                        else if(hidden==0 && tag.isBlock()) write("\n");
+                    }
+                    @Override public void handleText(char[] text,int position) { if(hidden==0) write(new String(text)); }
+                    @Override public void handleSimpleTag(javax.swing.text.html.HTML.Tag tag,javax.swing.text.MutableAttributeSet attributes,int position) {
+                        if(hidden==0 && tag==javax.swing.text.html.HTML.Tag.BR) write("\n");
+                    }
+                },true);
+        } catch(UncheckedIOException error) { throw error.getCause(); }
     }
     private static void word(Element element,String namespace,Writer output) throws IOException {
         if(!namespace.equals(element.getNamespaceURI())) return;

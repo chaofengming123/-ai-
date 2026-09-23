@@ -2,6 +2,7 @@
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { watch } from 'vue'
 import AppSidebar from './components/AppSidebar.vue'
+import { canVisit } from './utils/permissions.js'
 
 import { useAuthStore } from './stores/auth.js'
 const auth = useAuthStore()
@@ -31,7 +32,8 @@ watch(() => auth.isLoggedIn, loggedIn => {
       <RouterView v-slot="{ Component }">
         <!-- 保留搜索词和表单等页面状态；知识库业务数据由 Pinia 共享管理。 -->
         <KeepAlive :key="auth.sessionVersion" include="KnowledgeBaseView">
-          <component v-if="!route.meta.requiresAuth || auth.isLoggedIn" :is="Component" />
+          <component v-if="!route.meta.requiresAuth || (auth.isLoggedIn && canVisit(auth.user, route.path))" :is="Component" />
+          <p v-else class="empty-panel">当前账号没有访问此页面的权限，请从左侧选择可用功能。</p>
         </KeepAlive>
       </RouterView>
     </main>

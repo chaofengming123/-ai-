@@ -6,7 +6,7 @@ import { fetchDocuments, uploadDocument, downloadDocument, fetchDocumentText } f
 import { createDocumentPreview } from '../utils/documentPreview.js'
 import DocumentChunkPreview from '../components/DocumentChunkPreview.vue'
 import DocumentIndexPanel from '../components/DocumentIndexPanel.vue'
-import KnowledgeBaseAskPanel from '../components/KnowledgeBaseAskPanel.vue'
+import { RouterLink } from 'vue-router'
 import { validateDocument, formatFileSize } from '../utils/documents.js'
 
 const auth = useAuthStore()
@@ -16,6 +16,8 @@ const { preview, previewingId, previewError, closePreview, showPreview } = creat
 const bases = useKnowledgeBaseStore()
 const canRead = computed(() => auth.user?.permissions?.includes('document:read'))
 const canUpload = computed(() => auth.user?.permissions?.includes('document:upload'))
+const canIndex = computed(() => auth.user?.permissions?.includes('document:index'))
+const canChat = computed(() => auth.user?.permissions?.includes('chat:send'))
 const selectedId = ref('')
 const documents = ref([])
 const file = ref(null)
@@ -134,7 +136,8 @@ async function submit() {
     <div class="page-heading">
       <div><p class="eyebrow">团队知识空间</p><h1 id="documents-title">文档管理</h1></div>
     </div>
-    <p class="demo-note">支持 TXT、Markdown、PDF 和 DOCX，每个文件不超过 5 MB。建立成功索引后可检索或提问。正文预览最多 40000 字符，PDF 预览只读取前 20 页文本层；索引限制见文档索引面板。</p>
+    <p class="page-description">{{ canUpload ? '上传与整理团队资料，建立索引后即可用于 AI 问答。' : '查阅和下载团队资料，前往 AI 问答获取带来源的回答。' }}</p>
+    <div class="document-summary"><span>支持 TXT / MD / PDF / DOCX / CSV / TSV / JSON / HTML / RTF · 每份最多 5 MB</span><RouterLink v-if="canChat" to="/chat" class="primary-button page-link">前往 AI 问答</RouterLink></div>
     <div v-if="bases.loadError" class="load-error" role="alert">
       <p>{{ bases.loadError }}</p><button class="secondary-button" @click="loadBases">重新加载知识库</button>
     </div>
@@ -149,14 +152,13 @@ async function submit() {
     </div>
     <form v-if="canUpload && selectedId" class="document-upload" @submit.prevent="submit">
       <label for="document-file">选择文档</label>
-      <input id="document-file" ref="fileInput" type="file" accept=".txt,.md,.pdf,.docx" :disabled="uploading" @change="file = $event.target.files[0] ?? null; uploadError = ''; notice = ''">
+      <input id="document-file" ref="fileInput" type="file" accept=".txt,.md,.pdf,.docx,.csv,.tsv,.json,.html,.htm,.rtf" :disabled="uploading" @change="file = $event.target.files[0] ?? null; uploadError = ''; notice = ''">
       <button type="submit" class="primary-button" :disabled="uploading || loading">{{ uploading ? '正在上传……' : '上传文档' }}</button>
     </form>
     <p v-else-if="selectedId" class="demo-note">当前账号没有上传权限，可联系管理员分配编辑者角色。</p>
     <p v-if="uploadError" class="load-error" role="alert">{{ uploadError }}</p>
     <p v-if="notice" class="loading-notice" role="status">{{ notice }}</p>
     <p v-if="downloadError" class="load-error" role="alert">{{ downloadError }}</p>
-    <KnowledgeBaseAskPanel v-if="selectedId && canRead" :key="selectedId" :base-id="Number(selectedId)" :documents="documents" />
     <p v-if="!canRead" class="load-error">当前账号没有查看文档的权限。</p>
     <p v-else-if="loading" role="status">正在加载文档……</p>
     <p v-else-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
@@ -167,8 +169,8 @@ async function submit() {
         <div class="document-actions">
           <span class="demo-badge">{{ item.status === 'UPLOADED' ? '已上传' : item.status }}</span>
           <button v-if="canRead" type="button" class="secondary-button" :disabled="previewingId === item.id" @click="chunkDocument = null; showPreview(item)">{{ previewingId === item.id ? '正在提取……' : '查看正文' }}</button>
-          <button v-if="canRead" type="button" class="secondary-button" @click="closePreview(); chunkDocument = item">分块预览</button>
-          <button v-if="canRead" type="button" class="secondary-button" @click="closePreview(); chunkDocument = null; indexDocument = item">文档索引</button>
+          <button v-if="canIndex" type="button" class="secondary-button" @click="closePreview(); chunkDocument = item">分块预览</button>
+          <button v-if="canIndex" type="button" class="secondary-button" @click="closePreview(); chunkDocument = null; indexDocument = item">文档索引</button>
           <button v-if="canRead" type="button" class="secondary-button" :disabled="downloadingId !== null" :aria-label="`下载 ${item.fileName}`" @click="download(item)">{{ downloadingId === item.id ? '正在下载……' : '下载原文件' }}</button>
         </div>
       </li>

@@ -40,18 +40,18 @@ export async function readChatEvents(body, onDelta) {
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
 }
 
-export async function sendChatStream(messages, signal, onDelta, auth, fetcher = fetch) {
+export async function sendChatStream(messages, signal, onDelta, auth, fetcher = fetch, options = null) {
   const version = auth.sessionVersion
   const controller = new AbortController()
   const abort = () => controller.abort()
   signal.addEventListener('abort', abort, { once: true })
   if (signal.aborted) abort()
-  const timer = setTimeout(abort, 55000)
+  const timer = setTimeout(abort, options ? 300000 : 55000)
   try {
-    const response = await fetcher('/api/chat/stream', {
+    const response = await fetcher(options ? '/api/chat/assistant' : '/api/chat/stream', {
       method: 'POST', signal: controller.signal,
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', Authorization: `Bearer ${auth.accessToken}` },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, ...options }),
     })
     if (!response.ok) {
       if (version === auth.sessionVersion && auth.isLoggedIn) {

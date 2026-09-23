@@ -3,7 +3,6 @@ import { computed, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '../stores/auth.js'
 import { fetchDocumentIndex, buildDocumentIndex } from '../api/documents.js'
 import { createIndexMonitor } from '../utils/indexMonitor.js'
-import DocumentSearchPanel from './DocumentSearchPanel.vue'
 const props = defineProps({ document: { type: Object, required: true } })
 defineEmits(['close'])
 const auth = useAuthStore()
@@ -36,9 +35,8 @@ onBeforeUnmount(stop)
       <button class="secondary-button" :disabled="busy" @click="refresh('status')">刷新索引状态</button>
     </div>
     <p v-if="!canIndex">当前账号可查看状态，建立索引需要编辑者或管理员权限。</p>
-    <p>本次可能需要数分钟。关闭面板不等于停止服务器处理；重建失败会保留上一次成功版本。下方可检索片段或基于文档提问。</p>
+    <p>本次可能需要数分钟。关闭面板不等于停止服务器处理；重建失败会保留上一次成功版本。成功后请前往 AI 问答查询资料。</p>
     <p v-if="error" class="load-error" role="alert">{{ error }}</p>
     <p v-if="notice">{{ notice }}</p>
-    <DocumentSearchPanel :key="`${document.id}-${status?.indexedAt ?? ''}`" :document-id="document.id" :available="!!status?.hasActiveIndex && !!status?.currentModel" />
   </section>
 </template>

@@ -32,6 +32,15 @@ public class KnowledgeBaseRagService {
         int totalDocuments,int searchedDocuments,List<Skipped> skipped,List<Hit> matches,String mode,List<String> keywords,RerankInfo rerank,RagTimings.Report timings,String embeddingCache) {}
     public record RerankInfo(boolean enabled,boolean applied,String model,int candidateCount,List<Hit> before) {}
     public record Answer(Retrieval retrieval,boolean insufficient,String answer,String model,List<Hit> sources) {}
+    public void verifySources(long baseId,List<Hit> hits) {
+        for(var hit:hits) {
+            var document=documents.findById(hit.documentId());
+            var index=indexes.find(hit.documentId());
+            if(document==null || document.knowledgeBaseId()!=baseId || index==null || index.activeCollection()==null
+                    || !Objects.equals(index.indexedAt(),hit.indexedAt()) || !embedding.spaceId().equals(index.activeSpace()))
+                throw new ChatException(409,"回答期间文档索引已变化，请重新提问。");
+        }
+    }
     private record Item(DocumentInfo document,DocumentIndex index) {}
     private List<Item> snapshot(long baseId) {
         return documents.list(baseId).stream().map(d->new Item(d,indexes.find(d.id()))).toList();

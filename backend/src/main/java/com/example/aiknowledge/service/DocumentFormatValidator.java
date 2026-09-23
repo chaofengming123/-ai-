@@ -16,6 +16,7 @@ import com.example.aiknowledge.exception.DocumentException;
 
 /** 校验上传格式，不提取正文，也不改写文件。 */
 public final class DocumentFormatValidator {
+    public static final Set<String> TYPES=Set.of("txt","md","pdf","docx","csv","tsv","json","html","htm","rtf");
     private DocumentFormatValidator() {}
     private static final int MAX_ENTRIES=128, MAX_ENTRY_BYTES=4*1024*1024, MAX_EXPANDED_BYTES=8*1024*1024;
     private static final String CONTENT_TYPES="http://schemas.openxmlformats.org/package/2006/content-types";
@@ -26,10 +27,20 @@ public final class DocumentFormatValidator {
 
     public static void validate(String type,byte[] bytes) {
         switch(type) {
-            case "txt","md" -> text(bytes);
+            case "txt","md","csv","tsv","html","htm" -> text(bytes);
+            case "json" -> {
+                text(bytes);
+                try { tools.jackson.databind.json.JsonMapper.builder()
+                    .enable(tools.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS).build().readTree(bytes); }
+                catch(Exception error) { throw invalid("JSON 结构无效，请检查后上传。"); }
+            }
+            case "rtf" -> {
+                if(!new String(bytes,StandardCharsets.ISO_8859_1).startsWith("{\\rtf"))
+                    throw invalid("文件内容不是 RTF，请重新导出。");
+            }
             case "pdf" -> pdf(bytes);
             case "docx" -> docx(bytes);
-            default -> throw invalid("支持的格式为 TXT、Markdown、PDF 和 DOCX。");
+            default -> throw invalid("支持 TXT、Markdown、PDF、DOCX、CSV、TSV、JSON、HTML 和 RTF。");
         }
     }
     private static DocumentException invalid(String message) {
