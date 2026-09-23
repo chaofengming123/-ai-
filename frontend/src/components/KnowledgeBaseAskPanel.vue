@@ -11,6 +11,7 @@ const expectedIds = ref([])
 const retrievalMode = ref('vector')
 const keywordText = ref('')
 const rerankEnabled = ref(false)
+const stageLabels = { EMBEDDING: '问题向量生成', VECTOR_SEARCH: '文档向量检索与校验', KEYWORD_SCAN: '关键词原文扫描与校验', RERANK: 'BGE 重排', GENERATION: 'GLM 生成与格式校验' }
 const allowed = computed(() => ['knowledge-base:read', 'document:read', 'chat:send'].every(p => auth.user?.permissions?.includes(p)))
 const { result, busy, error, run, reset } = createVectorStorage({
   search: async ({ mode, text, expectedDocuments, searchMode, keywords, rerank }, signal) => ({
@@ -69,6 +70,16 @@ onBeforeUnmount(reset)
     <p v-if="error" class="load-error" role="alert">{{ error }}</p>
     <section v-if="retrieval" aria-label="知识库结果">
       <p>知识库：{{ retrieval.knowledgeBaseName }} · 问题：{{ retrieval.query }}</p>
+      <details v-if="retrieval.timings">
+        <summary>本次耗时 · 第 34 课：后端 {{ retrieval.timings.totalMillis }} ms</summary>
+        <table>
+          <thead><tr><th scope="col">阶段</th><th scope="col">执行次数</th><th scope="col">累计耗时</th></tr></thead>
+          <tbody><tr v-for="step in retrieval.timings.steps" :key="step.stage">
+            <td>{{ stageLabels[step.stage] ?? step.stage }}</td><td>{{ step.calls }}</td><td>{{ step.calls ? step.millis + ' ms' : '未执行' }}</td>
+          </tr></tbody>
+        </table>
+        <p>其他处理：{{ retrieval.timings.otherMillis }} ms。统计后端业务处理，不含浏览器网络传输或页面渲染。阶段次数不是 HTTP 请求数；少于 1 ms 的执行显示 0 ms。</p>
+      </details>
       <p>本次方式：{{ retrieval.mode === 'hybrid' ? '混合检索' : '向量检索' }}<span v-if="retrieval.mode === 'hybrid'">；关键词：{{ retrieval.keywords.join('、') }}。融合分数用于排序，不是相似度或正确概率。</span></p>
       <p>本次检索 {{ retrieval.searchedDocuments }} / {{ retrieval.totalDocuments }} 份文档，合并去除完全相同的原文后最多选择三个片段。</p>
       <section v-if="retrieval.rerank?.enabled" aria-label="重排对照">

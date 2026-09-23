@@ -27,7 +27,7 @@ public class KnowledgeBaseRagService {
     public record Hit(int sourceId,long documentId,String fileName,int chunkIndex,int startOffset,int endOffset,
         String text,double score,java.time.LocalDateTime indexedAt,boolean usingPreviousVersion,String note) {}
     public record Retrieval(long knowledgeBaseId,String knowledgeBaseName,String query,String embeddingModel,
-        int totalDocuments,int searchedDocuments,List<Skipped> skipped,List<Hit> matches,String mode,List<String> keywords,RerankInfo rerank) {}
+        int totalDocuments,int searchedDocuments,List<Skipped> skipped,List<Hit> matches,String mode,List<String> keywords,RerankInfo rerank,RagTimings.Report timings) {}
     public record RerankInfo(boolean enabled,boolean applied,String model,int candidateCount,List<Hit> before) {}
     public record Answer(Retrieval retrieval,boolean insufficient,String answer,String model,List<Hit> sources) {}
     private record Item(DocumentInfo document,DocumentIndex index) {}
@@ -60,6 +60,7 @@ public class KnowledgeBaseRagService {
         return List.copyOf(result);
     }
     public Object execute(long userId,long baseId,String question,boolean answer,String requestedMode,List<String> inputKeywords,boolean rerank) {
+        var timings=new RagTimings();
         String mode=requestedMode==null?"vector":requestedMode;
         var keywords=HybridRanking.keywords(mode,inputKeywords);
         if(question==null || question.isBlank() || question.length()>1000) throw new ChatException(400,"知识库问题需为 1–1000 个字符。");
@@ -80,11 +81,12 @@ public class KnowledgeBaseRagService {
             if(eligible.size()>5) throw new ChatException(400,"本课每个知识库最多检索 5 份兼容的成功索引，请使用较小的练习知识库。");
             List<Hit> candidates=new ArrayList<>(); var all=new ArrayList<Hit>();
             if(!eligible.isEmpty()) {
-                var vector=embedding.embed(List.of(question.strip())).get(0);
+                var vector=timings.measure(RagTimings.Stage.EMBEDDING,()->embedding.embed(List.of(question.strip())).get(0));
                 for(var item:eligible) {
-                    var found=search.searchWithVector(item.document().id(),question.strip(),vector);
+                    var found=timings.measure(RagTimings.Stage.VECTOR_SEARCH,()->search.searchWithVector(item.document().id(),question.strip(),vector));
                     collect(candidates,found,baseId);
-                    if("hybrid".equals(mode)) collect(all,search.scanForKeywords(item.document().id(),question.strip()),baseId);
+                    if("hybrid".equals(mode)) collect(all,timings.measure(RagTimings.Stage.KEYWORD_SCAN,
+                        ()->search.scanForKeywords(item.document().id(),question.strip())),baseId);
                 }
             }
             if("hybrid".equals(mode)) candidates=HybridRanking.fuse(candidates,all,keywords);
@@ -100,16 +102,20 @@ public class KnowledgeBaseRagService {
             var selected=baseline;
             boolean applied=rerank && pool.size()>1;
             if(applied) {
-                var indices=reranker.select(question.strip(),pool.stream().map(Hit::text).toList());
+                var indices=timings.measure(RagTimings.Stage.RERANK,()->reranker.select(question.strip(),pool.stream().map(Hit::text).toList()));
                 selected=numbered(indices.stream().map(pool::get).toList());
                 unchanged(baseId,before);
             }
             var rerankInfo=new RerankInfo(rerank,applied,applied?reranker.configuration().model():null,pool.size(),rerank?baseline:List.of());
-            var retrieval=new Retrieval(baseId,base.name(),question.strip(),embedding.configuration().model(),before.size(),eligible.size(),List.copyOf(skipped),selected,mode,keywords,rerankInfo);
-            if(!answer) return retrieval;
-            var generated=GroundedAnswer.generate(llm,question.strip(),selected.stream().map(Hit::text).toList());
-            unchanged(baseId,before);
             var finalSelected=selected;
+            GroundedAnswer.Generated generated=null;
+            if(answer) {
+                generated=selected.isEmpty()?GroundedAnswer.generate(llm,question.strip(),List.of()):
+                    timings.measure(RagTimings.Stage.GENERATION,()->GroundedAnswer.generate(llm,question.strip(),finalSelected.stream().map(Hit::text).toList()));
+                unchanged(baseId,before);
+            }
+            var retrieval=new Retrieval(baseId,base.name(),question.strip(),embedding.configuration().model(),before.size(),eligible.size(),List.copyOf(skipped),selected,mode,keywords,rerankInfo,timings.snapshot());
+            if(!answer) return retrieval;
             return new Answer(retrieval,generated.insufficient(),generated.answer(),llm.configuration().model(),
                 generated.sourceIds().stream().map(number->finalSelected.get(number-1)).toList());
         } finally { if(acquired) capacity.release(); activeUsers.remove(userId); }

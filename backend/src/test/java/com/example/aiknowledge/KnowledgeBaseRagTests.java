@@ -106,6 +106,7 @@ class KnowledgeBaseRagTests {
         when(documents.list(1)).thenReturn(List.of(document(1)));
         var result=(KnowledgeBaseRagService.Answer)rag.execute(9,1,"q",true);
         assertTrue(result.insufficient()); assertEquals(1,result.retrieval().skipped().size());
+        assertTrue(result.retrieval().timings().steps().stream().allMatch(step->step.calls()==0));
         verify(embedding,never()).embed(anyList()); verify(llm,never()).complete(anyList());
     }
     @Test void tooManyEligibleIndexesAreRejectedBeforeEmbedding() {

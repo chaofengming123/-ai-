@@ -102,6 +102,10 @@ class DocumentIndexTests {
         var answer=baseRequest(baseId,"answer",token,body); assertEquals(200,answer.statusCode(),answer.body());
         assertEquals("第二份原文",json.readTree(answer.body()).path("sources").get(0).path("text").asText());
         assertEquals("no-store",answer.headers().firstValue("cache-control").orElseThrow());
+        var steps=json.readTree(answer.body()).path("retrieval").path("timings").path("steps");
+        assertEquals(5,steps.size()); assertEquals(1,steps.get(0).path("calls").asInt());
+        assertEquals(2,steps.get(1).path("calls").asInt()); assertEquals(0,steps.get(2).path("calls").asInt());
+        assertEquals(1,steps.get(3).path("calls").asInt()); assertEquals(1,steps.get(4).path("calls").asInt());
     }
     @Test void hybridHttpUsesPublishedPayloadAndCallsEmbeddingOnce() throws Exception {
         long a=upload("普通说明"); long b=upload("必须使用 UTF-8 编码"); indexes.build(a); indexes.build(b);
