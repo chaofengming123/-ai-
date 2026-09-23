@@ -6,6 +6,7 @@ import { fetchDocuments, uploadDocument, downloadDocument, fetchDocumentText } f
 import { createDocumentPreview } from '../utils/documentPreview.js'
 import DocumentChunkPreview from '../components/DocumentChunkPreview.vue'
 import DocumentIndexPanel from '../components/DocumentIndexPanel.vue'
+import KnowledgeBaseAskPanel from '../components/KnowledgeBaseAskPanel.vue'
 import { validateDocument, formatFileSize } from '../utils/documents.js'
 
 const auth = useAuthStore()
@@ -133,7 +134,7 @@ async function submit() {
     <div class="page-heading">
       <div><p class="eyebrow">团队知识空间</p><h1 id="documents-title">文档管理</h1></div>
     </div>
-    <p class="demo-note">支持 TXT、Markdown、PDF 和 DOCX，每个文件不超过 1 MB。上传后可下载原文件或查看正文预览，尚未用于 AI 问答。预览最多 40000 字符；PDF 只读取前 20 页的文本层，不识别扫描图片。</p>
+    <p class="demo-note">支持 TXT、Markdown、PDF 和 DOCX，每个文件不超过 1 MB。建立成功索引后可检索或提问。正文预览最多 40000 字符，PDF 预览只读取前 20 页文本层；索引限制见文档索引面板。</p>
     <div v-if="bases.loadError" class="load-error" role="alert">
       <p>{{ bases.loadError }}</p><button class="secondary-button" @click="loadBases">重新加载知识库</button>
     </div>
@@ -155,6 +156,7 @@ async function submit() {
     <p v-if="uploadError" class="load-error" role="alert">{{ uploadError }}</p>
     <p v-if="notice" class="loading-notice" role="status">{{ notice }}</p>
     <p v-if="downloadError" class="load-error" role="alert">{{ downloadError }}</p>
+    <KnowledgeBaseAskPanel v-if="selectedId && canRead" :key="selectedId" :base-id="Number(selectedId)" />
     <p v-if="!canRead" class="load-error">当前账号没有查看文档的权限。</p>
     <p v-else-if="loading" role="status">正在加载文档……</p>
     <p v-else-if="loadError" class="load-error" role="alert">{{ loadError }}</p>

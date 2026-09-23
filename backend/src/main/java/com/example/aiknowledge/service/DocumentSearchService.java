@@ -21,6 +21,13 @@ public class DocumentSearchService {
     public record Result(long documentId,long knowledgeBaseId,String fileName,String query,String model,
         LocalDateTime indexedAt,boolean usingPreviousVersion,String note,List<Hit> matches) {}
     public Result search(long id,String query) {
+        return execute(id,query,null);
+    }
+    // 知识库检索复用同一个问题向量，仍执行每份文档的完整来源与版本校验。
+    public Result searchWithVector(long id,String query,double[] vector) {
+        return execute(id,query,Objects.requireNonNull(vector));
+    }
+    private Result execute(long id,String query,double[] suppliedVector) {
         if(query==null || query.isBlank() || query.length()>1000) throw new ChatException(400,"检索问题需为 1–1000 个字符。");
         if(!capacity.tryAcquire()) throw new ChatException(503,"当前文档检索较多，请稍后再试。");
         try {
@@ -33,7 +40,7 @@ public class DocumentSearchService {
             var info=qdrant.info(index.activeCollection());
             if(info==null) throw new ChatException(409,"已发布的索引集合缺失，请重新建立索引。");
             qdrant.verify(info,index.dimensions());
-            var vector=embedding.embed(List.of(query.strip())).get(0);
+            var vector=suppliedVector==null?embedding.embed(List.of(query.strip())).get(0):suppliedVector;
             if(vector.length!=index.dimensions()) throw new ChatException(409,"问题向量维度已变化，请重新建立索引。");
             var points=qdrant.search(index.activeCollection(),vector);
             if(!points.isArray() || points.size()>3) throw new ChatException(502,"检索响应格式不正确。");

@@ -4,16 +4,13 @@ import java.util.*;
 import java.util.concurrent.*;
 import org.springframework.stereotype.Service;
 import com.example.aiknowledge.mapper.DocumentIndexMapper;
-import com.example.aiknowledge.model.ChatMessage;
 import com.example.aiknowledge.exception.ChatException;
-import tools.jackson.databind.json.JsonMapper;
 
 @Service
 public class DocumentAnswerService {
     private final DocumentSearchService search;
     private final DocumentIndexMapper indexes;
     private final LlmClient llm;
-    private final JsonMapper json=JsonMapper.builder().build();
     private final Set<Long> activeUsers=ConcurrentHashMap.newKeySet();
     private final Semaphore capacity=new Semaphore(2);
     public DocumentAnswerService(DocumentSearchService search,DocumentIndexMapper indexes,LlmClient llm) {
@@ -46,32 +43,14 @@ public class DocumentAnswerService {
             var found=search.search(id,question);
             if(before==null || before.activeCollection()==null) throw new ChatException(409,"文档索引已变化，请重新提问。");
             ensureVersion(id,before.activeCollection());
-            if(found.matches().isEmpty()) return result(found,true,INSUFFICIENT,List.of());
-            var passages=new ArrayList<Map<String,Object>>();
-            for(int i=0;i<found.matches().size();i++) passages.add(Map.of("sourceId",i+1,"text",found.matches().get(i).text()));
-            var prompt=List.of(new ChatMessage("system",SYSTEM),new ChatMessage("user",json.writeValueAsString(
-                Map.of("question",found.query(),"passages",passages))));
-            var reply=llm.complete(prompt);
-            if(reply.truncated()) throw new ChatException(502,"模型回答被截断，未作为完整答案展示，请缩短问题后重试。");
-            boolean insufficient; String answer; List<Source> sources=new ArrayList<>();
-            try {
-                var data=json.readTree(reply.content());
-                if(!data.isObject() || !data.path("insufficient").isBoolean() || !data.path("answer").isString()
-                    || !data.path("sourceIds").isArray()) throw new IllegalArgumentException();
-                insufficient=data.path("insufficient").asBoolean(); answer=data.path("answer").asText();
-                if(answer.isBlank() || answer.length()>2000 || data.path("sourceIds").size()>found.matches().size()) throw new IllegalArgumentException();
-                var seen=new HashSet<Integer>();
-                for(var value:data.path("sourceIds")) {
-                    if(!value.isIntegralNumber() || !value.canConvertToInt()) throw new IllegalArgumentException();
-                    int number=value.asInt();
-                    if(number<1 || number>found.matches().size() || !seen.add(number)) throw new IllegalArgumentException();
-                    var hit=found.matches().get(number-1);
-                    sources.add(new Source(number,hit.chunkIndex(),hit.startOffset(),hit.endOffset(),hit.text(),hit.score()));
-                }
-                if(insufficient && !sources.isEmpty() || !insufficient && sources.isEmpty()) throw new IllegalArgumentException();
-            } catch(Exception error) { throw new ChatException(502,"模型返回的答案格式或引用编号无效，未展示未经校验的回答；系统没有自动重试。"); }
+            var generated=GroundedAnswer.generate(llm,found.query(),found.matches().stream().map(DocumentSearchService.Hit::text).toList());
+            var sources=new ArrayList<Source>();
+            for(int number:generated.sourceIds()) {
+                var hit=found.matches().get(number-1);
+                sources.add(new Source(number,hit.chunkIndex(),hit.startOffset(),hit.endOffset(),hit.text(),hit.score()));
+            }
             ensureVersion(id,before.activeCollection());
-            return result(found,insufficient,insufficient?INSUFFICIENT:answer,List.copyOf(sources));
+            return result(found,generated.insufficient(),generated.answer(),List.copyOf(sources));
         } finally {
             if(acquired) capacity.release();
             activeUsers.remove(userId);

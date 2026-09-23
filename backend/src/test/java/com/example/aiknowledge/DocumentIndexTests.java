@@ -75,6 +75,44 @@ class DocumentIndexTests {
     HttpResponse<String> searchRequest(long id,String query,String bearer) throws Exception {
         return queryRequest(id,query,bearer,"search");
     }
+    HttpResponse<String> baseRequest(long id,String action,String bearer) throws Exception {
+        var builder=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/knowledge-bases/"+id+"/"+action))
+            .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString("{\"query\":\"如何上传？\"}"));
+        if(bearer!=null) builder.header("Authorization","Bearer "+bearer);
+        return HttpClient.newHttpClient().send(builder.build(),HttpResponse.BodyHandlers.ofString());
+    }
+    @Test void baseRetrievalExcludesOtherBasesAndAnswersWithCrossDocumentSources() throws Exception {
+        long a=upload("上传要求甲"); long b=upload("账号要求乙"); long skipped=upload("尚未建立"); indexes.build(a); indexes.build(b);
+        long other=bases.create("other_"+UUID.randomUUID().toString().substring(0,8),"").id();
+        try {
+            long outside=documents.upload(other,new MockMultipartFile("file","outside.txt","text/plain","其他知识库秘密内容".getBytes(StandardCharsets.UTF_8))).id();
+            documentIds.add(outside); indexes.build(outside); clearInvocations(embedding,llm);
+            assertEquals(401,baseRequest(baseId,"answer",null).statusCode());
+            var response=baseRequest(baseId,"search",token); assertEquals(200,response.statusCode(),response.body());
+            var found=json.readTree(response.body()); assertEquals(2,found.path("searchedDocuments").asInt());
+            assertEquals(skipped,found.path("skipped").get(0).path("documentId").asLong());
+            assertFalse(response.body().contains("其他知识库秘密内容")); verify(embedding,times(1)).embed(List.of("如何上传？"));
+            when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("{\"insufficient\":false,\"answer\":\"两个要求\",\"sourceIds\":[1,2]}","glm",false));
+            var answer=baseRequest(baseId,"answer",token); assertEquals(200,answer.statusCode(),answer.body());
+            assertEquals(2,json.readTree(answer.body()).path("sources").size());
+            assertEquals("no-store",answer.headers().firstValue("cache-control").orElseThrow());
+        } finally { jdbc.update("DELETE FROM document WHERE knowledge_base_id=?",other); jdbc.update("DELETE FROM knowledge_base WHERE id=?",other); }
+    }
+    @Test void baseQuestionRequiresAllThreePermissions() throws Exception {
+        String code="RAG_"+UUID.randomUUID().toString().substring(0,8); jdbc.update("INSERT INTO app_role(code,label) VALUES (?,?)",code,code);
+        long role=jdbc.queryForObject("SELECT id FROM app_role WHERE code=?",Long.class,code);
+        try {
+            jdbc.update("DELETE FROM app_user_role WHERE user_id=?",userId); jdbc.update("INSERT INTO app_user_role(user_id,role_id) VALUES (?,?)",userId,role);
+            for(String missing:List.of("knowledge-base:read","document:read","chat:send")) {
+                jdbc.update("DELETE FROM app_role_permission WHERE role_id=?",role);
+                jdbc.update("INSERT INTO app_role_permission(role_id,permission_id) SELECT ?,id FROM app_permission WHERE code IN ('knowledge-base:read','document:read','chat:send') AND code<>?",role,missing);
+                assertEquals(403,baseRequest(baseId,"search",token).statusCode()); assertEquals(403,baseRequest(baseId,"answer",token).statusCode());
+            }
+            verify(embedding,never()).embed(anyList()); verify(llm,never()).complete(anyList());
+        } finally {
+            jdbc.update("DELETE FROM app_user_role WHERE role_id=?",role); jdbc.update("DELETE FROM app_role_permission WHERE role_id=?",role); jdbc.update("DELETE FROM app_role WHERE id=?",role);
+        }
+    }
     HttpResponse<String> queryRequest(long id,String query,String bearer,String action) throws Exception {
         var builder=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/documents/"+id+"/"+action))
             .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(Map.of("query",query))));
