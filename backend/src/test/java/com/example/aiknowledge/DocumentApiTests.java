@@ -204,12 +204,13 @@ class DocumentApiTests {
     }
 
     @Test void sizeBoundaryIsEnforcedAndMissingBaseCreatesNoFile() throws Exception {
+        assertEquals(5 * 1024 * 1024, DocumentService.MAX_BYTES);
         assertEquals(404,upload(Long.MAX_VALUE,"notes.txt",text,token).statusCode());
         assertEquals(0,fileCount());
         byte[] bytes = new byte[DocumentService.MAX_BYTES + 1]; Arrays.fill(bytes,(byte)'a');
         var rejected = upload(baseId,"large.txt",bytes,token);
         assertEquals(413,rejected.statusCode(),rejected.body());
-        assertTrue(json.readTree(rejected.body()).get("message").asText().contains("1 MB"));
+        assertTrue(json.readTree(rejected.body()).get("message").asText().contains("5 MB"));
         assertEquals(0,fileCount());
         assertEquals(201,upload(baseId,"limit.txt",Arrays.copyOf(bytes,DocumentService.MAX_BYTES),token).statusCode());
     }

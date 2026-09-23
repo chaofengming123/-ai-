@@ -5,6 +5,7 @@ import { uploadDocument, fetchDocuments, downloadDocument } from '../src/api/doc
 import { http } from '../src/api/http.js'
 
 test('upload validation handles missing, empty, wrong-extension and oversized files', () => {
+  assert.equal(MAX_DOCUMENT_BYTES, 5 * 1024 * 1024)
   assert.ok(validateDocument(null))
   assert.ok(validateDocument({ name: 'a.txt', size: 0 }))
   assert.ok(validateDocument({ name: 'a.docm', size: 2 }))

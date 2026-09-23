@@ -28,7 +28,7 @@ public class DocumentMigrationService {
                 if (status==STATUS_ROLLED_BACK) storage.remove(target);
             }
         });
-        // 本课最大 1 MB，逐字节比较即可验证完整性，确认后才更新数据库定位信息。
+        // 本课最大 5 MB，逐字节比较即可验证完整性，确认后才更新数据库定位信息。
         if (!Arrays.equals(bytes,storage.read(target))) throw new DocumentException(DocumentException.Kind.STORAGE_FAILURE,
                 "迁移后文件校验失败，已保留原记录。");
         if (documents.migrate(id,target.key(),target.bucket())!=1) throw new IllegalStateException("Migration conflict");

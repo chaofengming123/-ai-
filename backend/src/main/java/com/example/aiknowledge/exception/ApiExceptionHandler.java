@@ -28,7 +28,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<ErrorResponse> handleLargeFile() {
-        return ResponseEntity.status(413).body(new ErrorResponse("文件不能超过 1 MB，请求总大小不能超过 2 MB。"));
+        return ResponseEntity.status(413).body(new ErrorResponse("文件不能超过 5 MB，请求总大小不能超过 6 MB。"));
     }
 
     @ExceptionHandler({org.springframework.web.multipart.support.MissingServletRequestPartException.class,

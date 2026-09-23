@@ -1,6 +1,6 @@
 # 练习资料：上传要求
 
-本练习平台接收 TXT、Markdown、PDF 和 DOCX 文件。单个文件最多 1 MB，TXT 和 Markdown 使用 UTF-8 编码。
+本练习平台接收 TXT、Markdown、PDF 和 DOCX 文件。单个文件最多 5 MB，TXT 和 Markdown 使用 UTF-8 编码。
 
 上传前先选择目标知识库。文件上传成功后，还需要点击“文档索引”并手动建立索引，才能参与知识库问答。仅仅上传文件不会自动生成向量。
 

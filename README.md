@@ -109,11 +109,55 @@ PowerShell 启动脚本会载入此文件；IDEA 需按上文设置 `spring.conf
 
 `GET /api/health` 仍是基础服务存活检查，不检查数据库健康。
 
-只启动一份后端，避免与 IDEA 抢占 8080。更新代码后需要重启后端，以应用新增迁移和接口。文档入口为 `/documents`，支持单个最多 1 MB 的 TXT / Markdown / PDF / DOCX 文件及下载。文本需为 UTF-8，PDF 需未加密且不超过 500 页；DOCX 的结构及解压限制见第二十课。MinIO API 为本机 9000，控制台为 9001；首次从固定源码版本构建可能需要数分钟。IDEA 按上文导入配置文件后即可读取其中的 MinIO 凭据。
+只启动一份后端，避免与 IDEA 抢占 8080。更新代码后需要重启后端，以应用新增迁移和接口。文档入口为 `/documents`，支持单个最多 5 MB 的 TXT / Markdown / PDF / DOCX 文件及下载。文本需为 UTF-8，PDF 需未加密且不超过 500 页；DOCX 的结构及解压限制见第二十课。MinIO API 为本机 9000，控制台为 9001；首次从固定源码版本构建可能需要数分钟。IDEA 按上文导入配置文件后即可读取其中的 MinIO 凭据。
 
 旧文件默认位于 `backend/uploads/documents`，可用 `DOCUMENT_STORAGE_DIR` 指定原目录绝对路径。运行 `scripts/migrate-documents.sh preview` 预览，再用 `scripts/migrate-documents.sh apply` 迁移；复制校验后切换记录，保留本地备份。原文件与密钥不提交到 Git。含文档的知识库暂不允许删除。MinIO 社区发行状态、构建及详细配置见第十九课。
 
 Windows PowerShell 运行 `.\scripts\backend.ps1 test`，macOS、Linux 或 Git Bash 运行 `./scripts/backend.sh test`，使用独立 MySQL 测试库。MinIO 测试使用随机私有桶并在结束后清理，需先启动两个容器。前端 `npm test` 验证共享状态和错误处理。
+
+上传上限现为 5 MB（5,242,880 字节），重启新版后端会应用 V9 数据库约束迁移。正文预览、索引字数与 DOCX 解压限制仍按对应课程执行；上传成功不代表一定满足索引限制。已上传的旧练习文件不会随 Git 中的练习材料自动更新。
+
+## Redis 启动与关闭
+
+先启动 Docker Desktop。以下命令均在项目根目录执行，只操作 Redis 服务，不停止 MySQL、MinIO、Qdrant 或后端。
+
+### macOS / Linux / Git Bash
+
+```bash
+# 启动（首次会下载镜像）
+docker compose --env-file docker/.env -f docker/compose.yml up -d --wait redis
+# 查看运行状态
+docker compose --env-file docker/.env -f docker/compose.yml ps redis
+# 检查连通性，正常返回 PONG
+docker compose --env-file docker/.env -f docker/compose.yml exec redis redis-cli ping
+# 停止
+docker compose --env-file docker/.env -f docker/compose.yml stop redis
+# 重启已创建的容器
+docker compose --env-file docker/.env -f docker/compose.yml restart redis
+```
+
+### Windows PowerShell
+
+先打开 Docker Desktop，使用 Linux 容器，然后在项目根目录的 PowerShell 执行：
+
+```powershell
+# 启动（首次会下载镜像）
+docker compose --env-file .\docker\.env -f .\docker\compose.yml up -d --wait redis
+# 查看运行状态
+docker compose --env-file .\docker\.env -f .\docker\compose.yml ps redis
+# 检查连通性，正常返回 PONG
+docker compose --env-file .\docker\.env -f .\docker\compose.yml exec redis redis-cli ping
+# 停止
+docker compose --env-file .\docker\.env -f .\docker\compose.yml stop redis
+# 重启已创建的容器
+docker compose --env-file .\docker\.env -f .\docker\compose.yml restart redis
+```
+
+如果提示缺少 `docker/.env`，先按前文运行初始化脚本：macOS/Linux 使用 `python3 scripts/init-db-env.py`，Windows 使用 `python scripts/init-db-env.py`。已有配置无需重复初始化。
+
+Redis 在宿主机监听 `127.0.0.1:6380`，容器内部为 `6379`。本项目关闭了 Redis 磁盘持久化，停止后再次启动或重启 Redis 会丢失缓存；原文件、MySQL 数据和 Qdrant 索引不会因此删除。默认 Redis 模式下，缓存不可用时后端会直接计算问题向量并显示降级提示。
+
+如果 Windows 只是通过隧道访问 Mac 后端，Redis 也运行在 Mac，应在 Mac 执行启停命令；不必在 Windows 再启动一份。只有 Windows 独立运行本项目后端时，才在 Windows 启动自己的 Redis。两台机器各自启动的 Redis 不会自动共享缓存。
 
 ## 目录
 

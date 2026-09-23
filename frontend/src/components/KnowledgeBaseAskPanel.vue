@@ -53,7 +53,7 @@ onBeforeUnmount(reset)
       </select>
       <template v-if="retrievalMode === 'hybrid'">
         <label for="retrieval-keywords">关键词（逗号分隔，1–5 个，每个最多 40 字符）</label>
-        <input id="retrieval-keywords" v-model="keywordText" maxlength="204" :disabled="busy" placeholder="例如：1 MB, UTF-8">
+        <input id="retrieval-keywords" v-model="keywordText" maxlength="204" :disabled="busy" placeholder="例如：5 MB, UTF-8">
         <p>关键词按原文字面匹配，忽略大小写。它们用于查找资料，不是预期文档标注；混合检索仍会调用向量模型。</p>
       </template>
       <label><input v-model="bypassCache" type="checkbox" :disabled="busy || !allowed"> 本次跳过问题向量缓存 · 第 35 课</label>

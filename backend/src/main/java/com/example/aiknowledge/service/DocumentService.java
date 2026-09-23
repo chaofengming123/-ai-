@@ -13,7 +13,7 @@ import static com.example.aiknowledge.exception.DocumentException.Kind.*;
 
 @Service
 public class DocumentService {
-    public static final int MAX_BYTES = 1024 * 1024;
+    public static final int MAX_BYTES = 5 * 1024 * 1024;
     private final DocumentMapper documents;
     private final KnowledgeBaseMapper bases;
     private final DocumentStorage storage;
@@ -68,7 +68,7 @@ public class DocumentService {
             throw new DocumentException(INVALID_INPUT, "无法读取上传文件，请重新选择文件。");
         }
         if (bytes.length == 0) throw new DocumentException(INVALID_INPUT, "不能上传空文件。");
-        if (bytes.length > MAX_BYTES) throw new DocumentException(TOO_LARGE, "文件不能超过 1 MB。");
+        if (bytes.length > MAX_BYTES) throw new DocumentException(TOO_LARGE, "文件不能超过 5 MB。");
         DocumentFormatValidator.validate(type,bytes);
         // 锁住知识库，使上传与删除不会同时跨过存在性检查。
         if (bases.findForUpdate(baseId) == null)

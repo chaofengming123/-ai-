@@ -134,7 +134,7 @@ async function submit() {
     <div class="page-heading">
       <div><p class="eyebrow">团队知识空间</p><h1 id="documents-title">文档管理</h1></div>
     </div>
-    <p class="demo-note">支持 TXT、Markdown、PDF 和 DOCX，每个文件不超过 1 MB。建立成功索引后可检索或提问。正文预览最多 40000 字符，PDF 预览只读取前 20 页文本层；索引限制见文档索引面板。</p>
+    <p class="demo-note">支持 TXT、Markdown、PDF 和 DOCX，每个文件不超过 5 MB。建立成功索引后可检索或提问。正文预览最多 40000 字符，PDF 预览只读取前 20 页文本层；索引限制见文档索引面板。</p>
     <div v-if="bases.loadError" class="load-error" role="alert">
       <p>{{ bases.loadError }}</p><button class="secondary-button" @click="loadBases">重新加载知识库</button>
     </div>

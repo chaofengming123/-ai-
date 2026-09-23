@@ -103,7 +103,7 @@ return new Preview(id, file.name(), text.content(), text.truncated(), text.note(
 output.write(new String(bytes, StandardCharsets.UTF_8));
 ```
 
-字节是文件实际存储的数据，Java String 是解码后的文字，两者长度不相等。一个中文字符通常需要多个 UTF-8 字节，所以 1 MB 文件限制与 40000 字符预览限制解决的是不同问题。
+字节是文件实际存储的数据，Java String 是解码后的文字，两者长度不相等。一个中文字符通常需要多个 UTF-8 字节，所以 5 MB 文件限制与 40000 字符预览限制解决的是不同问题。
 
 返回前统一 CRLF / CR 为 LF，移除文件开头的 UTF-8 BOM 对应字符，方便前端显示。没有删除普通段落换行，也没有让模型“润色”正文。
 
