@@ -25,7 +25,8 @@ public class KnowledgeBaseRagService {
     public record Hit(int sourceId,long documentId,String fileName,int chunkIndex,int startOffset,int endOffset,
         String text,double score,java.time.LocalDateTime indexedAt,boolean usingPreviousVersion,String note) {}
     public record Retrieval(long knowledgeBaseId,String knowledgeBaseName,String query,String embeddingModel,
-        int totalDocuments,int searchedDocuments,List<Skipped> skipped,List<Hit> matches,String mode,List<String> keywords) {}
+        int totalDocuments,int searchedDocuments,List<Skipped> skipped,List<Hit> matches,String mode,List<String> keywords,RerankInfo rerank) {}
+    public record RerankInfo(boolean enabled,boolean applied,String model,int candidateCount,List<Hit> before) {}
     public record Answer(Retrieval retrieval,boolean insufficient,String answer,String model,List<Hit> sources) {}
     private record Item(DocumentInfo document,DocumentIndex index) {}
     private List<Item> snapshot(long baseId) {
@@ -48,6 +49,15 @@ public class KnowledgeBaseRagService {
             hit.text(),hit.score(),found.indexedAt(),found.usingPreviousVersion(),found.note()));
     }
     public Object execute(long userId,long baseId,String question,boolean answer,String requestedMode,List<String> inputKeywords) {
+        return execute(userId,baseId,question,answer,requestedMode,inputKeywords,false);
+    }
+    private List<Hit> numbered(List<Hit> hits) {
+        var result=new ArrayList<Hit>();
+        for(var hit:hits) result.add(new Hit(result.size()+1,hit.documentId(),hit.fileName(),hit.chunkIndex(),hit.startOffset(),hit.endOffset(),
+            hit.text(),hit.score(),hit.indexedAt(),hit.usingPreviousVersion(),hit.note()));
+        return List.copyOf(result);
+    }
+    public Object execute(long userId,long baseId,String question,boolean answer,String requestedMode,List<String> inputKeywords,boolean rerank) {
         String mode=requestedMode==null?"vector":requestedMode;
         var keywords=HybridRanking.keywords(mode,inputKeywords);
         if(question==null || question.isBlank() || question.length()>1000) throw new ChatException(400,"知识库问题需为 1–1000 个字符。");
@@ -56,7 +66,7 @@ public class KnowledgeBaseRagService {
         try {
             acquired=capacity.tryAcquire(); if(!acquired) throw new ChatException(503,"当前知识库请求较多，请稍后再试。");
             var base=bases.get(baseId);
-            if(answer && !llm.configuration().configured()) throw new ChatException(503,"请先配置 GLM 的 LLM_API_KEY 并重启后端。");
+            if((answer || rerank) && !llm.configuration().configured()) throw new ChatException(503,"请先配置 GLM 的 LLM_API_KEY 并重启后端。");
             var before=snapshot(baseId); var eligible=new ArrayList<Item>(); var skipped=new ArrayList<Skipped>();
             for(var item:before) {
                 var row=item.index();
@@ -76,19 +86,29 @@ public class KnowledgeBaseRagService {
             }
             if("hybrid".equals(mode)) candidates=HybridRanking.fuse(candidates,all,keywords);
             else candidates.sort(HybridRanking.ORDER);
-            var seen=new HashSet<String>(); var selected=new ArrayList<Hit>();
+            var seen=new HashSet<String>(); var pool=new ArrayList<Hit>();
             for(var hit:candidates) {
                 if(!seen.add(hit.text())) continue;
-                selected.add(new Hit(selected.size()+1,hit.documentId(),hit.fileName(),hit.chunkIndex(),hit.startOffset(),hit.endOffset(),hit.text(),hit.score(),hit.indexedAt(),hit.usingPreviousVersion(),hit.note()));
-                if(selected.size()==3) break;
+                pool.add(hit);
+                if(pool.size()==(rerank?6:3)) break;
             }
             unchanged(baseId,before);
-            var retrieval=new Retrieval(baseId,base.name(),question.strip(),embedding.configuration().model(),before.size(),eligible.size(),List.copyOf(skipped),List.copyOf(selected),mode,keywords);
+            var baseline=numbered(pool.stream().limit(3).toList());
+            var selected=baseline;
+            boolean applied=rerank && pool.size()>1;
+            if(applied) {
+                var ids=LlmReranker.select(llm,question.strip(),pool.stream().map(Hit::text).toList());
+                selected=numbered(ids.stream().map(id->pool.get(id-1)).toList());
+                unchanged(baseId,before);
+            }
+            var rerankInfo=new RerankInfo(rerank,applied,applied?llm.configuration().model():null,pool.size(),rerank?baseline:List.of());
+            var retrieval=new Retrieval(baseId,base.name(),question.strip(),embedding.configuration().model(),before.size(),eligible.size(),List.copyOf(skipped),selected,mode,keywords,rerankInfo);
             if(!answer) return retrieval;
             var generated=GroundedAnswer.generate(llm,question.strip(),selected.stream().map(Hit::text).toList());
             unchanged(baseId,before);
+            var finalSelected=selected;
             return new Answer(retrieval,generated.insufficient(),generated.answer(),llm.configuration().model(),
-                generated.sourceIds().stream().map(number->selected.get(number-1)).toList());
+                generated.sourceIds().stream().map(number->finalSelected.get(number-1)).toList());
         } finally { if(acquired) capacity.release(); activeUsers.remove(userId); }
     }
 }

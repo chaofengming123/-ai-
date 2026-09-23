@@ -10,23 +10,26 @@ const query = ref('这个知识库有哪些操作要求？')
 const expectedIds = ref([])
 const retrievalMode = ref('vector')
 const keywordText = ref('')
+const rerankEnabled = ref(false)
 const allowed = computed(() => ['knowledge-base:read', 'document:read', 'chat:send'].every(p => auth.user?.permissions?.includes(p)))
 const { result, busy, error, run, reset } = createVectorStorage({
-  search: async ({ mode, text, expectedDocuments, searchMode, keywords }, signal) => ({
-    ...(await http.post(`/knowledge-bases/${props.baseId}/${mode}`, { query: text, mode: searchMode, keywords }, { signal, timeout: 300000 })).data,
+  search: async ({ mode, text, expectedDocuments, searchMode, keywords, rerank }, signal) => ({
+    ...(await http.post(`/knowledge-bases/${props.baseId}/${mode}`, { query: text, mode: searchMode, keywords, rerank }, { signal, timeout: 300000 })).data,
     kind: mode,
     expectedDocuments,
   }),
 }, () => auth.sessionVersion)
 const retrieval = computed(() => result.value?.retrieval ?? result.value)
 const evaluation = computed(() => retrieval.value ? evaluateRetrieval(retrieval.value.matches, result.value.expectedDocuments) : null)
+const baselineEvaluation = computed(() => retrieval.value?.rerank?.enabled
+  ? evaluateRetrieval(retrieval.value.rerank.before, result.value.expectedDocuments) : null)
 function submit(mode) {
   if (!allowed.value || busy.value || !query.value.trim()) return
   // 请求开始时固定标注，之后修改选择不改变已经完成的评估。
   const expectedDocuments = props.documents.filter(doc => expectedIds.value.includes(doc.id))
     .map(doc => ({ id: doc.id, fileName: doc.fileName }))
   const keywords = retrievalMode.value === 'hybrid' ? keywordText.value.split(/[,，]/).map(word => word.trim()).filter(Boolean) : []
-  return run('search', { mode, text: query.value, expectedDocuments, searchMode: retrievalMode.value, keywords })
+  return run('search', { mode, text: query.value, expectedDocuments, searchMode: retrievalMode.value, keywords, rerank: rerankEnabled.value })
 }
 const sources = computed(() => result.value?.kind === 'answer' ? result.value.sources : retrieval.value?.matches ?? [])
 onBeforeUnmount(reset)
@@ -35,7 +38,7 @@ onBeforeUnmount(reset)
   <section class="chunk-panel" aria-label="知识库问答">
     <h2>知识库检索与问答 · 第 30 课</h2>
     <p>搜索当前知识库中最多 5 份模型兼容的成功索引。未建立索引或模型不兼容的文件会列出；不会搜索其他知识库。</p>
-    <p>检索把问题发送到向量模型；回答还会把最多三段原文发送到 GLM。可以先查找片段，再决定是否生成回答。</p>
+    <p>检索把问题发送到向量模型；启用重排还会把最多六段原文发送到 GLM，生成回答再发送最多三段。可以先查找片段，再决定是否生成回答。</p>
     <p v-if="!allowed">需要知识库查看、文档查看和 AI 对话权限。</p>
     <form class="chat-form" @submit.prevent="submit('search')">
       <label for="base-rag-query">向当前知识库提问</label>
@@ -50,6 +53,8 @@ onBeforeUnmount(reset)
         <input id="retrieval-keywords" v-model="keywordText" maxlength="204" :disabled="busy" placeholder="例如：1 MB, UTF-8">
         <p>关键词按原文字面匹配，忽略大小写。它们用于查找资料，不是预期文档标注；混合检索仍会调用向量模型。</p>
       </template>
+      <label><input v-model="rerankEnabled" type="checkbox" :disabled="busy || !allowed"> 启用 GLM 重排 · 第 33 课</label>
+      <p>默认关闭。开启后，候选至少两段时额外调用一次 GLM，从最多六段中选出并排序最多三段；可能更慢，效果需对照原文核实。</p>
       <fieldset :disabled="busy || !allowed">
         <legend>检索评估 · 第 31 课（可选）</legend>
         <p>先阅读资料，勾选应包含答案的文档，再发起请求。标注只用于本次结果对照，不影响检索。</p>
@@ -66,9 +71,21 @@ onBeforeUnmount(reset)
       <p>知识库：{{ retrieval.knowledgeBaseName }} · 问题：{{ retrieval.query }}</p>
       <p>本次方式：{{ retrieval.mode === 'hybrid' ? '混合检索' : '向量检索' }}<span v-if="retrieval.mode === 'hybrid'">；关键词：{{ retrieval.keywords.join('、') }}。融合分数用于排序，不是相似度或正确概率。</span></p>
       <p>本次检索 {{ retrieval.searchedDocuments }} / {{ retrieval.totalDocuments }} 份文档，合并去除完全相同的原文后最多选择三个片段。</p>
+      <section v-if="retrieval.rerank?.enabled" aria-label="重排对照">
+        <p v-if="retrieval.rerank.applied">本次使用 {{ retrieval.rerank.model }} 重排 {{ retrieval.rerank.candidateCount }} 段候选，显示顺序为重排后的顺序。原始分数不随重排改变。</p>
+        <p v-else>候选不足两段，跳过模型重排。</p>
+        <details>
+          <summary>查看重排前的前三段</summary>
+          <article v-for="hit in retrieval.rerank.before" :key="`${hit.documentId}-${hit.chunkIndex}`" class="chunk-item">
+            <p>原排名 {{ hit.sourceId }} · {{ hit.fileName }} · 文档 {{ hit.documentId }} · 块 {{ hit.chunkIndex + 1 }}</p>
+            <pre class="document-text-preview">{{ hit.text }}</pre>
+          </article>
+        </details>
+      </section>
       <ul v-if="retrieval.skipped.length"><li v-for="item in retrieval.skipped" :key="item.documentId">未参与：{{ item.fileName }}（{{ item.reason }}）</li></ul>
       <section v-if="evaluation" aria-label="检索评估结果">
         <h3>本次人工标注文档的检索表现</h3>
+        <p v-if="baselineEvaluation">重排前：覆盖率 {{ (baselineEvaluation.recall * 100).toFixed(1) }}%，RR {{ baselineEvaluation.reciprocalRank.toFixed(3) }}。下方为最终结果指标，使用同一次检索与同一份标注。</p>
         <p>预期文档覆盖率：{{ (evaluation.recall * 100).toFixed(1) }}%（{{ evaluation.found.length }} / {{ result.expectedDocuments.length }}）。</p>
         <p>首个预期来源的片段排名：{{ evaluation.firstRank ?? '未命中' }}；倒数排名 RR：{{ evaluation.reciprocalRank.toFixed(3) }}。</p>
         <p>请求时标注：{{ result.expectedDocuments.map(doc => `${doc.fileName}（${doc.id}）`).join('、') }}</p>
@@ -84,7 +101,7 @@ onBeforeUnmount(reset)
       <p v-else-if="!sources.length">当前没有可用片段。请先建立文档索引，再尝试相关问题。</p>
       <article v-for="source in sources" :key="source.sourceId" class="chunk-item">
         <h3>来源 {{ source.sourceId }} · {{ source.fileName }} · 块 {{ source.chunkIndex + 1 }}</h3>
-        <p>文档 {{ source.documentId }} · {{ retrieval.mode === 'hybrid' ? '融合分数' : '相似度' }} {{ source.score.toFixed(4) }} · 索引时间 {{ source.indexedAt?.replace('T', ' ') }}</p>
+        <p>文档 {{ source.documentId }} · {{ retrieval.rerank?.applied ? '重排前' : '' }}{{ retrieval.mode === 'hybrid' ? '融合分数' : '相似度' }} {{ source.score.toFixed(4) }} · 索引时间 {{ source.indexedAt?.replace('T', ' ') }}</p>
         <p v-if="source.usingPreviousVersion">使用最近一次重建之前的成功版本。</p>
         <p>{{ source.note }}</p>
         <p>正文字符范围 [{{ source.startOffset }}, {{ source.endOffset }})，不是页码。</p>

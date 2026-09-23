@@ -84,6 +84,22 @@ class DocumentIndexTests {
         if(bearer!=null) builder.header("Authorization","Bearer "+bearer);
         return HttpClient.newHttpClient().send(builder.build(),HttpResponse.BodyHandlers.ofString());
     }
+    @Test void rerankHttpReturnsValidatedOrderAndBaselineAndReusesAnswerSources() throws Exception {
+        long a=upload("第一份原文"); long b=upload("第二份原文"); indexes.build(a); indexes.build(b);
+        var body=Map.<String,Object>of("query","q","rerank",true);
+        clearInvocations(llm);
+        assertEquals(401,baseRequest(baseId,"search",null,body).statusCode()); verify(llm,never()).complete(anyList());
+        when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("{\"candidateIds\":[2,1]}","glm-test",false));
+        var response=baseRequest(baseId,"search",token,body); assertEquals(200,response.statusCode(),response.body());
+        var found=json.readTree(response.body()); assertTrue(found.path("rerank").path("applied").asBoolean());
+        assertEquals(a,found.path("rerank").path("before").get(0).path("documentId").asLong());
+        assertEquals(b,found.path("matches").get(0).path("documentId").asLong());
+        when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("{\"candidateIds\":[2,1]}","glm-test",false),
+            new LlmClient.Reply("{\"insufficient\":false,\"answer\":\"答\",\"sourceIds\":[1]}","glm-test",false));
+        var answer=baseRequest(baseId,"answer",token,body); assertEquals(200,answer.statusCode(),answer.body());
+        assertEquals("第二份原文",json.readTree(answer.body()).path("sources").get(0).path("text").asText());
+        assertEquals("no-store",answer.headers().firstValue("cache-control").orElseThrow());
+    }
     @Test void hybridHttpUsesPublishedPayloadAndCallsEmbeddingOnce() throws Exception {
         long a=upload("普通说明"); long b=upload("必须使用 UTF-8 编码"); indexes.build(a); indexes.build(b);
         clearInvocations(embedding,llm,qdrant);

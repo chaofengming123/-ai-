@@ -11,13 +11,13 @@ import com.example.aiknowledge.service.KnowledgeBaseRagService;
 public class KnowledgeBaseRagController {
     private final KnowledgeBaseRagService rag;
     public KnowledgeBaseRagController(KnowledgeBaseRagService rag) { this.rag=rag; }
-    public record Query(String query,String mode,java.util.List<String> keywords) {}
+    public record Query(String query,String mode,java.util.List<String> keywords,Boolean rerank) {}
     @PostMapping("/search")
     public ResponseEntity<Object> search(@PathVariable long id,@RequestBody Query query,@AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(rag.execute(Long.parseLong(jwt.getSubject()),id,query.query(),false,query.mode(),query.keywords()));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(rag.execute(Long.parseLong(jwt.getSubject()),id,query.query(),false,query.mode(),query.keywords(),Boolean.TRUE.equals(query.rerank())));
     }
     @PostMapping("/answer")
     public ResponseEntity<Object> answer(@PathVariable long id,@RequestBody Query query,@AuthenticationPrincipal Jwt jwt) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(rag.execute(Long.parseLong(jwt.getSubject()),id,query.query(),true,query.mode(),query.keywords()));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(rag.execute(Long.parseLong(jwt.getSubject()),id,query.query(),true,query.mode(),query.keywords(),Boolean.TRUE.equals(query.rerank())));
     }
 }

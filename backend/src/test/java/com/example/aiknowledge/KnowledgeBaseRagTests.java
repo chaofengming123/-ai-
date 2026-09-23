@@ -45,6 +45,44 @@ class KnowledgeBaseRagTests {
         assertThrows(ChatException.class,()->rag.execute(9,1,"q",true,"hybrid",List.of("ZX-904")));
         verify(llm,never()).complete(anyList());
     }
+    void prepareRerank() {
+        when(documents.list(1)).thenReturn(List.of(document(1),document(2),document(3)));
+        for(long id=1;id<=3;id++) {
+            when(indexes.find(id)).thenReturn(index(id,"space","c"+id));
+            when(search.searchWithVector(eq(id),anyString(),any())).thenReturn(result(id,
+                hit(0,"文档"+id+"甲",1-id*.1),hit(1,"文档"+id+"乙",1-id*.1-.01),hit(2,"文档"+id+"丙",1-id*.1-.02)));
+        }
+    }
+    @Test void rerankCapsPoolRenumbersSourcesAndKeepsSameRequestBaseline() {
+        prepareRerank();
+        when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("{\"candidateIds\":[6,4,1]}","glm",false),
+            new LlmClient.Reply("{\"insufficient\":false,\"answer\":\"答\",\"sourceIds\":[1]}","glm",false));
+        var answer=(KnowledgeBaseRagService.Answer)rag.execute(9,1,"q",true,"vector",List.of(),true);
+        assertEquals(6,answer.retrieval().rerank().candidateCount()); assertTrue(answer.retrieval().rerank().applied());
+        assertEquals(List.of(1L,1L,1L),answer.retrieval().rerank().before().stream().map(KnowledgeBaseRagService.Hit::documentId).toList());
+        assertEquals("文档2丙",answer.sources().get(0).text()); assertEquals(1,answer.sources().get(0).sourceId());
+        assertEquals(.78,answer.sources().get(0).score(),1e-12); verify(llm,times(2)).complete(anyList());
+        verify(embedding,times(1)).embed(List.of("q"));
+    }
+    @Test void changedIndexDuringRerankRejectsResultAndSkipsAnswerGeneration() {
+        prepareRerank();
+        when(llm.complete(anyList())).thenAnswer(call->{
+            when(indexes.find(1)).thenReturn(index(1,"space","new"));
+            return new LlmClient.Reply("{\"candidateIds\":[1,2,3]}","glm",false);
+        });
+        assertEquals(409,assertThrows(ChatException.class,()->rag.execute(9,1,"q",true,"vector",List.of(),true)).status());
+        verify(llm,times(1)).complete(anyList());
+    }
+    @Test void rerankRequiresModelBeforeRetrievalAndFailureReleasesUserSlot() {
+        when(llm.configuration()).thenReturn(new LlmClient.Configuration(false,"glm"));
+        assertEquals(503,assertThrows(ChatException.class,()->rag.execute(9,1,"q",false,"vector",List.of(),true)).status());
+        verify(embedding,never()).embed(anyList());
+        when(llm.configuration()).thenReturn(new LlmClient.Configuration(true,"glm"));
+        prepareRerank(); when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("bad","glm",false));
+        assertEquals(502,assertThrows(ChatException.class,()->rag.execute(9,1,"q",false,"vector",List.of(),true)).status());
+        var result=(KnowledgeBaseRagService.Retrieval)rag.execute(9,1,"q",false);
+        assertFalse(result.rerank().enabled()); assertEquals(3,result.matches().size());
+    }
     @Test void oneEmbeddingRanksAcrossDocumentsDeduplicatesAndReportsSkippedFiles() {
         when(documents.list(1)).thenReturn(List.of(document(1),document(2),document(3),document(4)));
         when(indexes.find(1)).thenReturn(index(1,"space","c1")); when(indexes.find(2)).thenReturn(index(2,"space","c2"));
