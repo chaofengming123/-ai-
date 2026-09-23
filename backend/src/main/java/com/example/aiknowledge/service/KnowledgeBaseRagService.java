@@ -25,7 +25,7 @@ public class KnowledgeBaseRagService {
     public record Hit(int sourceId,long documentId,String fileName,int chunkIndex,int startOffset,int endOffset,
         String text,double score,java.time.LocalDateTime indexedAt,boolean usingPreviousVersion,String note) {}
     public record Retrieval(long knowledgeBaseId,String knowledgeBaseName,String query,String embeddingModel,
-        int totalDocuments,int searchedDocuments,List<Skipped> skipped,List<Hit> matches) {}
+        int totalDocuments,int searchedDocuments,List<Skipped> skipped,List<Hit> matches,String mode,List<String> keywords) {}
     public record Answer(Retrieval retrieval,boolean insufficient,String answer,String model,List<Hit> sources) {}
     private record Item(DocumentInfo document,DocumentIndex index) {}
     private List<Item> snapshot(long baseId) {
@@ -40,6 +40,16 @@ public class KnowledgeBaseRagService {
         if(!versions(before).equals(versions(snapshot(id)))) throw new ChatException(409,"处理期间知识库文档或索引已变化，请重新提交。");
     }
     public Object execute(long userId,long baseId,String question,boolean answer) {
+        return execute(userId,baseId,question,answer,"vector",List.of());
+    }
+    private void collect(List<Hit> target,DocumentSearchService.Result found,long baseId) {
+        if(found.knowledgeBaseId()!=baseId) throw new ChatException(409,"文档归属已变化，请重新检索。");
+        for(var hit:found.matches()) target.add(new Hit(0,found.documentId(),found.fileName(),hit.chunkIndex(),hit.startOffset(),hit.endOffset(),
+            hit.text(),hit.score(),found.indexedAt(),found.usingPreviousVersion(),found.note()));
+    }
+    public Object execute(long userId,long baseId,String question,boolean answer,String requestedMode,List<String> inputKeywords) {
+        String mode=requestedMode==null?"vector":requestedMode;
+        var keywords=HybridRanking.keywords(mode,inputKeywords);
         if(question==null || question.isBlank() || question.length()>1000) throw new ChatException(400,"知识库问题需为 1–1000 个字符。");
         if(!activeUsers.add(userId)) throw new ChatException(429,"上一条知识库请求仍在处理中，请等待完成。");
         boolean acquired=false;
@@ -55,17 +65,17 @@ public class KnowledgeBaseRagService {
                 else skipped.add(new Skipped(item.document().id(),item.document().fileName(),reason));
             }
             if(eligible.size()>5) throw new ChatException(400,"本课每个知识库最多检索 5 份兼容的成功索引，请使用较小的练习知识库。");
-            var candidates=new ArrayList<Hit>();
+            List<Hit> candidates=new ArrayList<>(); var all=new ArrayList<Hit>();
             if(!eligible.isEmpty()) {
                 var vector=embedding.embed(List.of(question.strip())).get(0);
                 for(var item:eligible) {
                     var found=search.searchWithVector(item.document().id(),question.strip(),vector);
-                    if(found.knowledgeBaseId()!=baseId) throw new ChatException(409,"文档归属已变化，请重新检索。");
-                    for(var hit:found.matches()) candidates.add(new Hit(0,found.documentId(),found.fileName(),hit.chunkIndex(),hit.startOffset(),hit.endOffset(),
-                        hit.text(),hit.score(),found.indexedAt(),found.usingPreviousVersion(),found.note()));
+                    collect(candidates,found,baseId);
+                    if("hybrid".equals(mode)) collect(all,search.scanForKeywords(item.document().id(),question.strip()),baseId);
                 }
             }
-            candidates.sort(Comparator.comparingDouble(Hit::score).reversed().thenComparingLong(Hit::documentId).thenComparingInt(Hit::chunkIndex));
+            if("hybrid".equals(mode)) candidates=HybridRanking.fuse(candidates,all,keywords);
+            else candidates.sort(HybridRanking.ORDER);
             var seen=new HashSet<String>(); var selected=new ArrayList<Hit>();
             for(var hit:candidates) {
                 if(!seen.add(hit.text())) continue;
@@ -73,7 +83,7 @@ public class KnowledgeBaseRagService {
                 if(selected.size()==3) break;
             }
             unchanged(baseId,before);
-            var retrieval=new Retrieval(baseId,base.name(),question.strip(),embedding.configuration().model(),before.size(),eligible.size(),List.copyOf(skipped),List.copyOf(selected));
+            var retrieval=new Retrieval(baseId,base.name(),question.strip(),embedding.configuration().model(),before.size(),eligible.size(),List.copyOf(skipped),List.copyOf(selected),mode,keywords);
             if(!answer) return retrieval;
             var generated=GroundedAnswer.generate(llm,question.strip(),selected.stream().map(Hit::text).toList());
             unchanged(baseId,before);

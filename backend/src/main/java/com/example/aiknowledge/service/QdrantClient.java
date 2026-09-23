@@ -65,4 +65,12 @@ public class QdrantClient {
         return call("POST","/collections/"+collection+"/points/query",
             Map.of("query",vector,"limit",3,"with_payload",true,"with_vector",false),false).path("points");
     }
+    // 第 27 课单文档最多 12 块；不允许把第一页误当成完整文档。
+    public JsonNode scanDocument(String collection) {
+        var result=call("POST","/collections/"+collection+"/points/scroll",
+            Map.of("limit",12,"with_payload",true,"with_vector",false),false);
+        if(!result.has("next_page_offset") || !result.path("next_page_offset").isNull())
+            throw new ChatException(502,"文档索引扫描未完整返回，请检查索引块数。");
+        return result.path("points");
+    }
 }

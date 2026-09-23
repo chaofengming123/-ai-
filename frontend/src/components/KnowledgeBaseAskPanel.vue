@@ -8,10 +8,12 @@ const props = defineProps({ baseId: { type: Number, required: true }, documents:
 const auth = useAuthStore()
 const query = ref('这个知识库有哪些操作要求？')
 const expectedIds = ref([])
+const retrievalMode = ref('vector')
+const keywordText = ref('')
 const allowed = computed(() => ['knowledge-base:read', 'document:read', 'chat:send'].every(p => auth.user?.permissions?.includes(p)))
 const { result, busy, error, run, reset } = createVectorStorage({
-  search: async ({ mode, text, expectedDocuments }, signal) => ({
-    ...(await http.post(`/knowledge-bases/${props.baseId}/${mode}`, { query: text }, { signal, timeout: 300000 })).data,
+  search: async ({ mode, text, expectedDocuments, searchMode, keywords }, signal) => ({
+    ...(await http.post(`/knowledge-bases/${props.baseId}/${mode}`, { query: text, mode: searchMode, keywords }, { signal, timeout: 300000 })).data,
     kind: mode,
     expectedDocuments,
   }),
@@ -23,7 +25,8 @@ function submit(mode) {
   // 请求开始时固定标注，之后修改选择不改变已经完成的评估。
   const expectedDocuments = props.documents.filter(doc => expectedIds.value.includes(doc.id))
     .map(doc => ({ id: doc.id, fileName: doc.fileName }))
-  return run('search', { mode, text: query.value, expectedDocuments })
+  const keywords = retrievalMode.value === 'hybrid' ? keywordText.value.split(/[,，]/).map(word => word.trim()).filter(Boolean) : []
+  return run('search', { mode, text: query.value, expectedDocuments, searchMode: retrievalMode.value, keywords })
 }
 const sources = computed(() => result.value?.kind === 'answer' ? result.value.sources : retrieval.value?.matches ?? [])
 onBeforeUnmount(reset)
@@ -37,6 +40,16 @@ onBeforeUnmount(reset)
     <form class="chat-form" @submit.prevent="submit('search')">
       <label for="base-rag-query">向当前知识库提问</label>
       <textarea id="base-rag-query" v-model="query" rows="2" maxlength="1000" required :disabled="busy"></textarea>
+      <label for="retrieval-mode">检索方式 · 第 32 课</label>
+      <select id="retrieval-mode" v-model="retrievalMode" :disabled="busy">
+        <option value="vector">向量检索</option>
+        <option value="hybrid">混合检索：向量 + 关键词</option>
+      </select>
+      <template v-if="retrievalMode === 'hybrid'">
+        <label for="retrieval-keywords">关键词（逗号分隔，1–5 个，每个最多 40 字符）</label>
+        <input id="retrieval-keywords" v-model="keywordText" maxlength="204" :disabled="busy" placeholder="例如：1 MB, UTF-8">
+        <p>关键词按原文字面匹配，忽略大小写。它们用于查找资料，不是预期文档标注；混合检索仍会调用向量模型。</p>
+      </template>
       <fieldset :disabled="busy || !allowed">
         <legend>检索评估 · 第 31 课（可选）</legend>
         <p>先阅读资料，勾选应包含答案的文档，再发起请求。标注只用于本次结果对照，不影响检索。</p>
@@ -51,6 +64,7 @@ onBeforeUnmount(reset)
     <p v-if="error" class="load-error" role="alert">{{ error }}</p>
     <section v-if="retrieval" aria-label="知识库结果">
       <p>知识库：{{ retrieval.knowledgeBaseName }} · 问题：{{ retrieval.query }}</p>
+      <p>本次方式：{{ retrieval.mode === 'hybrid' ? '混合检索' : '向量检索' }}<span v-if="retrieval.mode === 'hybrid'">；关键词：{{ retrieval.keywords.join('、') }}。融合分数用于排序，不是相似度或正确概率。</span></p>
       <p>本次检索 {{ retrieval.searchedDocuments }} / {{ retrieval.totalDocuments }} 份文档，合并去除完全相同的原文后最多选择三个片段。</p>
       <ul v-if="retrieval.skipped.length"><li v-for="item in retrieval.skipped" :key="item.documentId">未参与：{{ item.fileName }}（{{ item.reason }}）</li></ul>
       <section v-if="evaluation" aria-label="检索评估结果">
@@ -70,7 +84,7 @@ onBeforeUnmount(reset)
       <p v-else-if="!sources.length">当前没有可用片段。请先建立文档索引，再尝试相关问题。</p>
       <article v-for="source in sources" :key="source.sourceId" class="chunk-item">
         <h3>来源 {{ source.sourceId }} · {{ source.fileName }} · 块 {{ source.chunkIndex + 1 }}</h3>
-        <p>文档 {{ source.documentId }} · 相似度 {{ source.score.toFixed(4) }} · 索引时间 {{ source.indexedAt?.replace('T', ' ') }}</p>
+        <p>文档 {{ source.documentId }} · {{ retrieval.mode === 'hybrid' ? '融合分数' : '相似度' }} {{ source.score.toFixed(4) }} · 索引时间 {{ source.indexedAt?.replace('T', ' ') }}</p>
         <p v-if="source.usingPreviousVersion">使用最近一次重建之前的成功版本。</p>
         <p>{{ source.note }}</p>
         <p>正文字符范围 [{{ source.startOffset }}, {{ source.endOffset }})，不是页码。</p>

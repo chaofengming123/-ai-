@@ -33,6 +33,18 @@ class KnowledgeBaseRagTests {
         when(embedding.embed(anyList())).thenReturn(List.of(vector));
         when(llm.configuration()).thenReturn(new LlmClient.Configuration(true,"glm"));
     }
+    @Test void hybridRecallsMissingChunkAndRejectsScanFailureBeforeGeneration() {
+        when(documents.list(1)).thenReturn(List.of(document(1)));
+        when(indexes.find(1)).thenReturn(index(1,"space","c1"));
+        when(search.searchWithVector(eq(1L),anyString(),any())).thenReturn(result(1,hit(0,"一般",.9)));
+        when(search.scanForKeywords(1,"q")).thenReturn(result(1,hit(0,"一般",0),hit(1,"ZX-904",0)));
+        var result=(KnowledgeBaseRagService.Retrieval)rag.execute(9,1,"q",false,"hybrid",List.of("ZX-904"));
+        assertEquals(List.of("一般","ZX-904"),result.matches().stream().map(KnowledgeBaseRagService.Hit::text).toList());
+        verify(embedding,times(1)).embed(List.of("q"));
+        when(search.scanForKeywords(1,"q")).thenThrow(new ChatException(502,"不完整"));
+        assertThrows(ChatException.class,()->rag.execute(9,1,"q",true,"hybrid",List.of("ZX-904")));
+        verify(llm,never()).complete(anyList());
+    }
     @Test void oneEmbeddingRanksAcrossDocumentsDeduplicatesAndReportsSkippedFiles() {
         when(documents.list(1)).thenReturn(List.of(document(1),document(2),document(3),document(4)));
         when(indexes.find(1)).thenReturn(index(1,"space","c1")); when(indexes.find(2)).thenReturn(index(2,"space","c2"));

@@ -76,10 +76,48 @@ class DocumentIndexTests {
         return queryRequest(id,query,bearer,"search");
     }
     HttpResponse<String> baseRequest(long id,String action,String bearer) throws Exception {
+        return baseRequest(id,action,bearer,Map.of("query","如何上传？"));
+    }
+    HttpResponse<String> baseRequest(long id,String action,String bearer,Map<String,Object> body) throws Exception {
         var builder=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/knowledge-bases/"+id+"/"+action))
-            .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString("{\"query\":\"如何上传？\"}"));
+            .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body)));
         if(bearer!=null) builder.header("Authorization","Bearer "+bearer);
         return HttpClient.newHttpClient().send(builder.build(),HttpResponse.BodyHandlers.ofString());
+    }
+    @Test void hybridHttpUsesPublishedPayloadAndCallsEmbeddingOnce() throws Exception {
+        long a=upload("普通说明"); long b=upload("必须使用 UTF-8 编码"); indexes.build(a); indexes.build(b);
+        clearInvocations(embedding,llm,qdrant);
+        var body=Map.<String,Object>of("query","编码要求","mode","hybrid","keywords",List.of("UTF-8"));
+        assertEquals(401,baseRequest(baseId,"search",null,body).statusCode());
+        var response=baseRequest(baseId,"search",token,body); assertEquals(200,response.statusCode(),response.body());
+        var found=json.readTree(response.body()); assertEquals("hybrid",found.path("mode").asText());
+        assertEquals(b,found.path("matches").get(0).path("documentId").asLong());
+        assertEquals("utf-8",found.path("keywords").get(0).asText());
+        verify(embedding,times(1)).embed(List.of("编码要求")); verify(qdrant).scanDocument(rows.find(a).activeCollection());
+        verify(qdrant).scanDocument(rows.find(b).activeCollection()); verify(llm,never()).complete(anyList());
+        var answer=baseRequest(baseId,"answer",token,body); assertEquals(200,answer.statusCode(),answer.body());
+        assertEquals(b,json.readTree(answer.body()).path("sources").get(0).path("documentId").asLong());
+        assertEquals("no-store",answer.headers().firstValue("cache-control").orElseThrow());
+    }
+    @Test void keywordScanRejectsIncompleteOrForeignPayloadAndChecksVersion() {
+        long id=upload("正确文字"); indexes.build(id); var collection=rows.find(id).activeCollection();
+        var points=qdrant.scanDocument(collection); clearInvocations(embedding);
+        assertEquals("正确文字",searches.scanForKeywords(id,"文字").matches().get(0).text());
+        verify(embedding,never()).embed(anyList());
+        doReturn(json.createArrayNode()).when(qdrant).scanDocument(collection);
+        assertEquals(502,assertThrows(ChatException.class,()->searches.scanForKeywords(id,"文字")).status());
+        var wrong=points.deepCopy(); ((tools.jackson.databind.node.ObjectNode)wrong.get(0).path("payload")).put("documentId",id+1);
+        doReturn(wrong).when(qdrant).scanDocument(collection);
+        assertEquals(502,assertThrows(ChatException.class,()->searches.scanForKeywords(id,"文字")).status());
+        doAnswer(call->{
+            jdbc.update("UPDATE document_index SET active_collection=? WHERE document_id=?",collection+"changed",id);
+            return points;
+        }).when(qdrant).scanDocument(collection);
+        assertEquals(409,assertThrows(ChatException.class,()->searches.scanForKeywords(id,"文字")).status());
+    }
+    @Test void invalidHybridInputDoesNotCallModels() throws Exception {
+        var response=baseRequest(baseId,"search",token,Map.of("query","q","mode","hybrid","keywords",List.of()));
+        assertEquals(400,response.statusCode()); verify(embedding,never()).embed(anyList()); verify(llm,never()).complete(anyList());
     }
     @Test void baseRetrievalExcludesOtherBasesAndAnswersWithCrossDocumentSources() throws Exception {
         long a=upload("上传要求甲"); long b=upload("账号要求乙"); long skipped=upload("尚未建立"); indexes.build(a); indexes.build(b);
