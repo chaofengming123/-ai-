@@ -1,0 +1,66 @@
+# 与 compose.yml 合并，保留 ai-knowledge 工程及已有数据卷。
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/backend/Dockerfile
+    image: ai-knowledge-backend:lesson39
+    restart: unless-stopped
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      DB_URL: jdbc:mysql://mysql:3306/ai_knowledge?useSSL=false&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
+      DB_USER: ai_knowledge
+      DB_PASSWORD: ${DB_PASSWORD:?Run scripts/init-db-env.py}
+      JWT_SECRET: ${JWT_SECRET:?Run scripts/init-db-env.py}
+      DOCUMENT_STORAGE_BACKEND: minio
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Run scripts/init-db-env.py}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Run scripts/init-db-env.py}
+      MINIO_BUCKET: ${MINIO_BUCKET:-ai-knowledge-documents}
+      QDRANT_ENDPOINT: http://qdrant:6333
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      VECTOR_CACHE_BACKEND: redis
+      VECTOR_CACHE_NAMESPACE: ${VECTOR_CACHE_NAMESPACE:-ai-knowledge}
+      LLM_ENDPOINT: ${LLM_ENDPOINT:-https://open.bigmodel.cn/api/paas/v4/chat/completions}
+      LLM_MODEL: ${LLM_MODEL:-glm-4.7-flash}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_TOKEN_PARAMETER: ${LLM_TOKEN_PARAMETER:-max_tokens}
+      LLM_THINKING: ${LLM_THINKING:-disabled}
+      EMBEDDING_ENDPOINT: ${EMBEDDING_ENDPOINT:-https://api.siliconflow.cn/v1/embeddings}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      RERANK_ENDPOINT: ${RERANK_ENDPOINT:-https://api.siliconflow.cn/v1/rerank}
+      RERANK_MODEL: ${RERANK_MODEL:-BAAI/bge-reranker-v2-m3}
+      RERANK_API_KEY: ${RERANK_API_KEY:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 40s
+  web:
+    build:
+      context: ..
+      dockerfile: docker/web/Dockerfile
+    image: ai-knowledge-web:lesson39
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PORT:-8088}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
