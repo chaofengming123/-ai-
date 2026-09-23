@@ -13,6 +13,10 @@ public class DocumentIndexController {
     public ResponseEntity<DocumentIndexService.Status> status(@PathVariable long id) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(indexes.status(id));
     }
+    @PostMapping("/tasks")
+    public ResponseEntity<DocumentIndexService.Status> submit(@PathVariable long id) {
+        return ResponseEntity.accepted().cacheControl(CacheControl.noStore()).body(indexes.submit(id));
+    }
     @PostMapping
     public ResponseEntity<DocumentIndexService.Status> build(@PathVariable long id) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(indexes.build(id));

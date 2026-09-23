@@ -70,6 +70,47 @@ class DocumentIndexTests {
         if(bearer!=null) builder.header("Authorization","Bearer "+bearer);
         return HttpClient.newHttpClient().send(builder.build(),HttpResponse.BodyHandlers.ofString());
     }
+    HttpResponse<String> taskRequest(long id,String bearer) throws Exception {
+        var builder=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/documents/"+id+"/index/tasks"))
+            .timeout(java.time.Duration.ofSeconds(3)).POST(HttpRequest.BodyPublishers.noBody());
+        if(bearer!=null) builder.header("Authorization","Bearer "+bearer);
+        return HttpClient.newHttpClient().send(builder.build(),HttpResponse.BodyHandlers.ofString());
+    }
+    void awaitTerminal(long id) throws Exception {
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(8);
+        while("PROCESSING".equals(indexes.status(id).state()) && System.nanoTime()<deadline) Thread.sleep(20);
+        assertNotEquals("PROCESSING",indexes.status(id).state());
+    }
+    @Test void taskAcceptsBeforeModelCompletesAndRejectsDuplicate() throws Exception {
+        long id=upload("后台索引文字"); var entered=new CountDownLatch(1); var release=new CountDownLatch(1);
+        when(embedding.embed(anyList())).thenAnswer(call->{
+            entered.countDown(); assertTrue(release.await(6,TimeUnit.SECONDS));
+            return List.of(new double[]{1,0});
+        });
+        try {
+            var response=taskRequest(id,token);
+            assertEquals(202,response.statusCode(),response.body());
+            assertEquals("PROCESSING",json.readTree(response.body()).path("state").asText());
+            assertEquals("no-store",response.headers().firstValue("cache-control").orElseThrow());
+            assertTrue(entered.await(2,TimeUnit.SECONDS));
+            assertEquals("PROCESSING",indexes.status(id).state());
+            assertEquals(503,taskRequest(id,token).statusCode());
+        } finally { release.countDown(); awaitTerminal(id); }
+        assertEquals("READY",indexes.status(id).state()); verify(embedding,times(1)).embed(anyList());
+    }
+    @Test void failedBackgroundRebuildKeepsPublishedIndex() throws Exception {
+        long id=upload("保留原索引"); indexes.build(id); String old=rows.find(id).activeCollection();
+        when(embedding.embed(anyList())).thenThrow(new ChatException(503,"模型暂不可用"));
+        assertEquals(202,taskRequest(id,token).statusCode()); awaitTerminal(id);
+        assertEquals("FAILED",indexes.status(id).state()); assertEquals(old,rows.find(id).activeCollection());
+        assertTrue(indexes.status(id).hasActiveIndex());
+    }
+    @Test void taskChecksAuthorizationBeforeRegisteringWork() throws Exception {
+        long id=upload("权限验证"); assertEquals(401,taskRequest(id,null).statusCode());
+        jdbc.update("DELETE FROM app_user_role WHERE user_id=?",userId); access.assignRole(userId,"USER");
+        assertEquals(403,taskRequest(id,token).statusCode());
+        assertNull(rows.find(id)); verify(embedding,never()).embed(anyList());
+    }
     HttpResponse<String> raw(String method,String path,String body) throws Exception {
         return HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:6333"+path))
             .header("Content-Type","application/json").method(method,body==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(body)).build(),HttpResponse.BodyHandlers.ofString());

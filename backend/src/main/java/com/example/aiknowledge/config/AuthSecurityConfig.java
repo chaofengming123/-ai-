@@ -61,7 +61,7 @@ public class AuthSecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/documents/*/text").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.GET, "/api/documents/*/chunks").hasAuthority("document:read")
                 .requestMatchers(HttpMethod.GET, "/api/documents/*/index").hasAuthority("document:read")
-                .requestMatchers(HttpMethod.POST, "/api/documents/*/index").hasAuthority("document:index")
+                .requestMatchers(HttpMethod.POST, "/api/documents/*/index", "/api/documents/*/index/tasks").hasAuthority("document:index")
                 .requestMatchers(HttpMethod.POST, "/api/documents/*/search", "/api/documents/*/answer").access(
                     new org.springframework.security.web.access.expression.WebExpressionAuthorizationManager(
                         "hasAuthority('document:read') and hasAuthority('chat:send')"))

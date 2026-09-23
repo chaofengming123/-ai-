@@ -3,7 +3,7 @@ package com.example.aiknowledge.service;
 import java.util.*;
 import java.time.LocalDateTime;
 import java.security.MessageDigest;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.*;
 import org.springframework.stereotype.Service;
 import com.example.aiknowledge.mapper.*;
 import com.example.aiknowledge.exception.*;
@@ -16,6 +16,9 @@ public class DocumentIndexService {
     private final EmbeddingClient embedding;
     private final QdrantClient qdrant;
     private final Semaphore capacity=new Semaphore(1);
+    private final ExecutorService worker=new ThreadPoolExecutor(1,1,0,TimeUnit.MILLISECONDS,
+        new ArrayBlockingQueue<>(1),r->{ var t=new Thread(r,"document-index-worker"); t.setDaemon(true); return t; });
+    @jakarta.annotation.PreDestroy void stop() { worker.shutdownNow(); }
     public DocumentIndexService(DocumentService files,DocumentMapper documents,DocumentIndexMapper indexes,
         EmbeddingClient embedding,QdrantClient qdrant) {
         this.files=files; this.documents=documents; this.indexes=indexes; this.embedding=embedding; this.qdrant=qdrant;
@@ -34,17 +37,39 @@ public class DocumentIndexService {
         if(document==null) throw new KnowledgeBaseException(KnowledgeBaseException.Kind.NOT_FOUND,"文档不存在。");
         return document;
     }
-    public Status build(long id) {
+    // 先持久化 PROCESSING，再交给后台；不把尚未登记的任务回复为已接受。
+    public Status submit(long id) { return start(id,true); }
+    public Status build(long id) { return start(id,false); }
+    private Status start(long id,boolean async) {
         var document=requireDocument(id);
         if(!capacity.tryAcquire()) throw new ChatException(503,"当前有文档正在建立索引，请稍后再试。");
         String attempt=UUID.randomUUID().toString();
         String collection="document27_"+id+"_"+attempt.replace("-", "");
-        boolean claimed=false, published=false, created=false;
-        long deadline=System.nanoTime()+java.time.Duration.ofMinutes(5).toNanos();
+        boolean claimed=false;
         try {
             indexes.initialize(id);
             if(indexes.claim(id,attempt)!=1) throw new ChatException(409,"该文档正在处理；若上次后端意外退出，请十分钟后再试。");
             claimed=true;
+            if(async) {
+                var accepted=status(id);
+                worker.execute(()->{
+                    try { execute(id,document,attempt,collection); }
+                    catch(RuntimeException ignored) { /* execute 已尝试持久化失败，状态不确定时由原租约规则恢复。 */ }
+                });
+                return accepted;
+            }
+        } catch(RuntimeException error) {
+            if(claimed) try { indexes.fail(id,attempt,"任务未能提交，请稍后重试。"); } catch(RuntimeException ignored) {}
+            capacity.release();
+            if(error instanceof RejectedExecutionException) throw new ChatException(503,"后台任务暂时不可用，请稍后重试。");
+            throw error;
+        }
+        return execute(id,document,attempt,collection);
+    }
+    private Status execute(long id,com.example.aiknowledge.model.DocumentInfo document,String attempt,String collection) {
+        boolean published=false, created=false;
+        long deadline=System.nanoTime()+java.time.Duration.ofMinutes(5).toNanos();
+        try {
             var file=files.download(id);
             var text=DocumentTextExtractor.forIndex(file.name(),file.bytes());
             if(text.content().isBlank()) throw new ChatException(400,"未提取到可索引文字，请提供有文本内容的文件；扫描图片需要先做 OCR。");
@@ -77,7 +102,7 @@ public class DocumentIndexService {
             published=true;
             return status(id);
         } catch(Exception error) {
-            if(claimed && !published) {
+            if(!published) {
                 // 数据库返回结果不确定时，保守保留集合，避免删掉已经发布的向量。
                 boolean safeToRemove=false;
                 try {
