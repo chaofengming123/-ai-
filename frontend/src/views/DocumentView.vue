@@ -156,7 +156,7 @@ async function submit() {
     <p v-if="uploadError" class="load-error" role="alert">{{ uploadError }}</p>
     <p v-if="notice" class="loading-notice" role="status">{{ notice }}</p>
     <p v-if="downloadError" class="load-error" role="alert">{{ downloadError }}</p>
-    <KnowledgeBaseAskPanel v-if="selectedId && canRead" :key="selectedId" :base-id="Number(selectedId)" />
+    <KnowledgeBaseAskPanel v-if="selectedId && canRead" :key="selectedId" :base-id="Number(selectedId)" :documents="documents" />
     <p v-if="!canRead" class="load-error">当前账号没有查看文档的权限。</p>
     <p v-else-if="loading" role="status">正在加载文档……</p>
     <p v-else-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
