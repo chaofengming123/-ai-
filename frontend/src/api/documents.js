@@ -29,3 +29,6 @@ export async function buildDocumentIndex(id, signal) {
 export async function searchDocument(id, query, signal) {
   return (await http.post(`/documents/${id}/search`, { query }, { signal, timeout: 130000 })).data
 }
+export async function answerDocument(id, query, signal) {
+  return (await http.post(`/documents/${id}/answer`, { query }, { signal, timeout: 240000 })).data
+}

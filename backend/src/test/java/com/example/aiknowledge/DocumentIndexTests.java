@@ -30,6 +30,7 @@ class DocumentIndexTests {
     static final String bucket="index27-test-"+UUID.randomUUID();
     @DynamicPropertySource static void config(DynamicPropertyRegistry r) { r.add("app.minio.bucket",()->bucket); }
     @MockitoBean EmbeddingClient embedding;
+    @MockitoBean LlmClient llm;
     @MockitoSpyBean QdrantClient qdrant;
     @Autowired DocumentService documents;
     @Autowired DocumentIndexService indexes;
@@ -48,6 +49,8 @@ class DocumentIndexTests {
     static MinioClient minio() { return MinioClient.builder().endpoint("http://127.0.0.1:9000")
         .credentials(System.getenv("MINIO_ROOT_USER"),System.getenv("MINIO_ROOT_PASSWORD")).build(); }
     @BeforeEach void setup() {
+        when(llm.configuration()).thenReturn(new LlmClient.Configuration(true,"glm-test"));
+        when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("{\"insufficient\":false,\"answer\":\"根据文档上传。\",\"sourceIds\":[1]}","glm-test",false));
         when(embedding.spaceId()).thenReturn("test-space");
         when(embedding.configuration()).thenReturn(new EmbeddingClient.Configuration(true,"test-model"));
         when(embedding.embed(anyList())).thenAnswer(call->((List<?>)call.getArgument(0)).stream().map(x->new double[]{1,0}).toList());
@@ -70,7 +73,10 @@ class DocumentIndexTests {
             .header("Content-Type","application/json").method(method,body==null?HttpRequest.BodyPublishers.noBody():HttpRequest.BodyPublishers.ofString(body)).build(),HttpResponse.BodyHandlers.ofString());
     }
     HttpResponse<String> searchRequest(long id,String query,String bearer) throws Exception {
-        var builder=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/documents/"+id+"/search"))
+        return queryRequest(id,query,bearer,"search");
+    }
+    HttpResponse<String> queryRequest(long id,String query,String bearer,String action) throws Exception {
+        var builder=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/documents/"+id+"/"+action))
             .header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(Map.of("query",query))));
         if(bearer!=null) builder.header("Authorization","Bearer "+bearer);
         return HttpClient.newHttpClient().send(builder.build(),HttpResponse.BodyHandlers.ofString());
@@ -139,9 +145,11 @@ class DocumentIndexTests {
             jdbc.update("INSERT INTO app_role_permission(role_id,permission_id) SELECT ?,id FROM app_permission WHERE code='document:read'",role);
             clearInvocations(embedding);
             assertEquals(403,searchRequest(id,"问题",token).statusCode());
+            assertEquals(403,queryRequest(id,"问题",token,"answer").statusCode());
             jdbc.update("DELETE FROM app_role_permission WHERE role_id=?",role);
             jdbc.update("INSERT INTO app_role_permission(role_id,permission_id) SELECT ?,id FROM app_permission WHERE code='chat:send'",role);
             assertEquals(403,searchRequest(id,"问题",token).statusCode()); verify(embedding,never()).embed(anyList());
+            assertEquals(403,queryRequest(id,"问题",token,"answer").statusCode()); verify(llm,never()).complete(anyList());
             jdbc.update("INSERT INTO app_role_permission(role_id,permission_id) SELECT ?,id FROM app_permission WHERE code='document:read'",role);
             assertEquals(200,searchRequest(id,"问题",token).statusCode());
         } finally {
@@ -149,6 +157,17 @@ class DocumentIndexTests {
             jdbc.update("DELETE FROM app_role_permission WHERE role_id=?",role);
             jdbc.update("DELETE FROM app_role WHERE id=?",role);
         }
+    }
+    @Test void documentAnswerEndpointReturnsServerResolvedSourcesAndProtectsAnonymousAccess() throws Exception {
+        long id=upload("选择文件后上传。"); indexes.build(id);
+        assertEquals(401,queryRequest(id,"如何上传？",null,"answer").statusCode());
+        var response=queryRequest(id,"如何上传？",token,"answer");
+        assertEquals(200,response.statusCode(),response.body()); assertEquals("no-store",response.headers().firstValue("cache-control").orElseThrow());
+        var answer=json.readTree(response.body());
+        assertEquals("选择文件后上传。",answer.path("sources").get(0).path("text").asText());
+        assertEquals(id,answer.path("documentId").asLong()); assertEquals("source.txt",answer.path("fileName").asText());
+        assertFalse(response.body().contains(rows.find(id).activeCollection()));
+        verify(llm,times(1)).complete(anyList());
     }
     @AfterEach void cleanup() throws Exception {
         var collections=json.readTree(raw("GET","/collections",null).body()).path("result").path("collections");

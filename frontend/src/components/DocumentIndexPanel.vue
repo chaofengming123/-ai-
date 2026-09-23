@@ -35,7 +35,7 @@ onBeforeUnmount(reset)
       <button class="secondary-button" :disabled="busy" @click="run('status')">刷新索引状态</button>
     </div>
     <p v-if="!canIndex">当前账号可查看状态，建立索引需要编辑者或管理员权限。</p>
-    <p>本次可能需要数分钟。关闭面板不等于停止服务器处理；重建失败会保留上一次成功版本。本课尚未将文档接入聊天问答。</p>
+    <p>本次可能需要数分钟。关闭面板不等于停止服务器处理；重建失败会保留上一次成功版本。下方可检索片段或基于文档提问。</p>
     <p v-if="error" class="load-error" role="alert">{{ error }}</p>
     <DocumentSearchPanel :key="`${document.id}-${status?.indexedAt ?? ''}`" :document-id="document.id" :available="!!status?.hasActiveIndex && !!status?.currentModel" />
   </section>
