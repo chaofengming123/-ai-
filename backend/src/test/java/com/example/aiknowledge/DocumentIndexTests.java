@@ -31,6 +31,7 @@ class DocumentIndexTests {
     @DynamicPropertySource static void config(DynamicPropertyRegistry r) { r.add("app.minio.bucket",()->bucket); }
     @MockitoBean EmbeddingClient embedding;
     @MockitoBean LlmClient llm;
+    @MockitoBean RerankClient reranker;
     @MockitoSpyBean QdrantClient qdrant;
     @Autowired DocumentService documents;
     @Autowired DocumentIndexService indexes;
@@ -49,6 +50,7 @@ class DocumentIndexTests {
     static MinioClient minio() { return MinioClient.builder().endpoint("http://127.0.0.1:9000")
         .credentials(System.getenv("MINIO_ROOT_USER"),System.getenv("MINIO_ROOT_PASSWORD")).build(); }
     @BeforeEach void setup() {
+        when(reranker.configuration()).thenReturn(new RerankClient.Configuration(true,"BAAI/bge-reranker-v2-m3"));
         when(llm.configuration()).thenReturn(new LlmClient.Configuration(true,"glm-test"));
         when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("{\"insufficient\":false,\"answer\":\"根据文档上传。\",\"sourceIds\":[1]}","glm-test",false));
         when(embedding.spaceId()).thenReturn("test-space");
@@ -89,12 +91,13 @@ class DocumentIndexTests {
         var body=Map.<String,Object>of("query","q","rerank",true);
         clearInvocations(llm);
         assertEquals(401,baseRequest(baseId,"search",null,body).statusCode()); verify(llm,never()).complete(anyList());
-        when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("{\"candidateIds\":[2,1]}","glm-test",false));
+        when(reranker.select(anyString(),anyList())).thenReturn(List.of(1,0));
         var response=baseRequest(baseId,"search",token,body); assertEquals(200,response.statusCode(),response.body());
         var found=json.readTree(response.body()); assertTrue(found.path("rerank").path("applied").asBoolean());
         assertEquals(a,found.path("rerank").path("before").get(0).path("documentId").asLong());
         assertEquals(b,found.path("matches").get(0).path("documentId").asLong());
-        when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("{\"candidateIds\":[2,1]}","glm-test",false),
+        verify(llm,never()).complete(anyList());
+        when(llm.complete(anyList())).thenReturn(
             new LlmClient.Reply("{\"insufficient\":false,\"answer\":\"答\",\"sourceIds\":[1]}","glm-test",false));
         var answer=baseRequest(baseId,"answer",token,body); assertEquals(200,answer.statusCode(),answer.body());
         assertEquals("第二份原文",json.readTree(answer.body()).path("sources").get(0).path("text").asText());

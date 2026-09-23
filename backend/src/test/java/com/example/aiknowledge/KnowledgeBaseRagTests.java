@@ -18,7 +18,8 @@ class KnowledgeBaseRagTests {
     final DocumentSearchService search=mock(DocumentSearchService.class);
     final EmbeddingClient embedding=mock(EmbeddingClient.class);
     final LlmClient llm=mock(LlmClient.class);
-    final KnowledgeBaseRagService rag=new KnowledgeBaseRagService(bases,documents,indexes,search,embedding,llm);
+    final RerankClient reranker=mock(RerankClient.class);
+    final KnowledgeBaseRagService rag=new KnowledgeBaseRagService(bases,documents,indexes,search,embedding,llm,reranker);
     final LocalDateTime time=LocalDateTime.of(2026,9,23,0,0);
     final double[] vector={1,0};
     DocumentInfo document(long id) { return new DocumentInfo(id,1,"doc"+id+".txt","txt",10,"UPLOADED",time); }
@@ -28,6 +29,7 @@ class KnowledgeBaseRagTests {
     }
     DocumentSearchService.Hit hit(int id,String text,double score) { return new DocumentSearchService.Hit(id,0,text.length(),text,score); }
     @BeforeEach void setup() {
+        when(reranker.configuration()).thenReturn(new RerankClient.Configuration(true,"bge-reranker"));
         when(bases.get(1)).thenReturn(new KnowledgeBase(1,"知识库","",0,""));
         when(embedding.spaceId()).thenReturn("space"); when(embedding.configuration()).thenReturn(new EmbeddingClient.Configuration(true,"model"));
         when(embedding.embed(anyList())).thenReturn(List.of(vector));
@@ -55,33 +57,38 @@ class KnowledgeBaseRagTests {
     }
     @Test void rerankCapsPoolRenumbersSourcesAndKeepsSameRequestBaseline() {
         prepareRerank();
-        when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("{\"candidateIds\":[6,4,1]}","glm",false),
+        when(reranker.select(anyString(),anyList())).thenReturn(List.of(5,3,0));
+        when(llm.complete(anyList())).thenReturn(
             new LlmClient.Reply("{\"insufficient\":false,\"answer\":\"答\",\"sourceIds\":[1]}","glm",false));
         var answer=(KnowledgeBaseRagService.Answer)rag.execute(9,1,"q",true,"vector",List.of(),true);
         assertEquals(6,answer.retrieval().rerank().candidateCount()); assertTrue(answer.retrieval().rerank().applied());
         assertEquals(List.of(1L,1L,1L),answer.retrieval().rerank().before().stream().map(KnowledgeBaseRagService.Hit::documentId).toList());
         assertEquals("文档2丙",answer.sources().get(0).text()); assertEquals(1,answer.sources().get(0).sourceId());
-        assertEquals(.78,answer.sources().get(0).score(),1e-12); verify(llm,times(2)).complete(anyList());
+        assertEquals(.78,answer.sources().get(0).score(),1e-12); verify(llm,times(1)).complete(anyList()); verify(reranker).select(eq("q"),argThat(texts->texts.size()==6));
         verify(embedding,times(1)).embed(List.of("q"));
     }
     @Test void changedIndexDuringRerankRejectsResultAndSkipsAnswerGeneration() {
         prepareRerank();
-        when(llm.complete(anyList())).thenAnswer(call->{
+        when(reranker.select(anyString(),anyList())).thenAnswer(call->{
             when(indexes.find(1)).thenReturn(index(1,"space","new"));
-            return new LlmClient.Reply("{\"candidateIds\":[1,2,3]}","glm",false);
+            return List.of(0,1,2);
         });
         assertEquals(409,assertThrows(ChatException.class,()->rag.execute(9,1,"q",true,"vector",List.of(),true)).status());
-        verify(llm,times(1)).complete(anyList());
+        verify(llm,never()).complete(anyList());
     }
-    @Test void rerankRequiresModelBeforeRetrievalAndFailureReleasesUserSlot() {
-        when(llm.configuration()).thenReturn(new LlmClient.Configuration(false,"glm"));
+    @Test void rerankRequiresIndependentKeyAndWorksWithoutGlmAndFailureReleasesSlot() {
+        when(reranker.configuration()).thenReturn(new RerankClient.Configuration(false,"bge"));
         assertEquals(503,assertThrows(ChatException.class,()->rag.execute(9,1,"q",false,"vector",List.of(),true)).status());
         verify(embedding,never()).embed(anyList());
-        when(llm.configuration()).thenReturn(new LlmClient.Configuration(true,"glm"));
-        prepareRerank(); when(llm.complete(anyList())).thenReturn(new LlmClient.Reply("bad","glm",false));
+        when(reranker.configuration()).thenReturn(new RerankClient.Configuration(true,"bge"));
+        when(llm.configuration()).thenReturn(new LlmClient.Configuration(false,"glm"));
+        prepareRerank();
+        when(reranker.select(anyString(),anyList())).thenThrow(new ChatException(502,"bad"));
         assertEquals(502,assertThrows(ChatException.class,()->rag.execute(9,1,"q",false,"vector",List.of(),true)).status());
-        var result=(KnowledgeBaseRagService.Retrieval)rag.execute(9,1,"q",false);
-        assertFalse(result.rerank().enabled()); assertEquals(3,result.matches().size());
+        doReturn(List.of(2,1,0)).when(reranker).select(anyString(),anyList());
+        var result=(KnowledgeBaseRagService.Retrieval)rag.execute(9,1,"q",false,"vector",List.of(),true);
+        assertTrue(result.rerank().applied()); assertEquals(3,result.matches().size());
+        verify(llm,never()).complete(anyList());
     }
     @Test void oneEmbeddingRanksAcrossDocumentsDeduplicatesAndReportsSkippedFiles() {
         when(documents.list(1)).thenReturn(List.of(document(1),document(2),document(3),document(4)));

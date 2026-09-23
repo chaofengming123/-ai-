@@ -38,7 +38,7 @@ onBeforeUnmount(reset)
   <section class="chunk-panel" aria-label="知识库问答">
     <h2>知识库检索与问答 · 第 30 课</h2>
     <p>搜索当前知识库中最多 5 份模型兼容的成功索引。未建立索引或模型不兼容的文件会列出；不会搜索其他知识库。</p>
-    <p>检索把问题发送到向量模型；启用重排还会把最多六段原文发送到 GLM，生成回答再发送最多三段。可以先查找片段，再决定是否生成回答。</p>
+    <p>检索把问题发送到向量模型；启用重排还会把最多六段原文发送到硅基流动重排服务，生成回答再发送最多三段。可以先查找片段，再决定是否生成回答。</p>
     <p v-if="!allowed">需要知识库查看、文档查看和 AI 对话权限。</p>
     <form class="chat-form" @submit.prevent="submit('search')">
       <label for="base-rag-query">向当前知识库提问</label>
@@ -53,8 +53,8 @@ onBeforeUnmount(reset)
         <input id="retrieval-keywords" v-model="keywordText" maxlength="204" :disabled="busy" placeholder="例如：1 MB, UTF-8">
         <p>关键词按原文字面匹配，忽略大小写。它们用于查找资料，不是预期文档标注；混合检索仍会调用向量模型。</p>
       </template>
-      <label><input v-model="rerankEnabled" type="checkbox" :disabled="busy || !allowed"> 启用 GLM 重排 · 第 33 课</label>
-      <p>默认关闭。开启后，候选至少两段时额外调用一次 GLM，从最多六段中选出并排序最多三段；可能更慢，效果需对照原文核实。</p>
+      <label><input v-model="rerankEnabled" type="checkbox" :disabled="busy || !allowed"> 启用 BGE 重排 · 第 33 课</label>
+      <p>默认关闭。开启后，候选至少两段时额外调用一次 BAAI/bge-reranker-v2-m3，从最多六段中选出并排序最多三段；可能更慢，效果需对照原文核实。</p>
       <fieldset :disabled="busy || !allowed">
         <legend>检索评估 · 第 31 课（可选）</legend>
         <p>先阅读资料，勾选应包含答案的文档，再发起请求。标注只用于本次结果对照，不影响检索。</p>

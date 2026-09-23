@@ -15,11 +15,13 @@ public class KnowledgeBaseRagService {
     private final DocumentSearchService search;
     private final EmbeddingClient embedding;
     private final LlmClient llm;
+    private final RerankClient reranker;
     private final Semaphore capacity=new Semaphore(2);
     private final Set<Long> activeUsers=ConcurrentHashMap.newKeySet();
     public KnowledgeBaseRagService(KnowledgeBaseService bases,DocumentMapper documents,DocumentIndexMapper indexes,
-        DocumentSearchService search,EmbeddingClient embedding,LlmClient llm) {
+        DocumentSearchService search,EmbeddingClient embedding,LlmClient llm,RerankClient reranker) {
         this.bases=bases; this.documents=documents; this.indexes=indexes; this.search=search; this.embedding=embedding; this.llm=llm;
+        this.reranker=reranker;
     }
     public record Skipped(long documentId,String fileName,String reason) {}
     public record Hit(int sourceId,long documentId,String fileName,int chunkIndex,int startOffset,int endOffset,
@@ -66,7 +68,8 @@ public class KnowledgeBaseRagService {
         try {
             acquired=capacity.tryAcquire(); if(!acquired) throw new ChatException(503,"当前知识库请求较多，请稍后再试。");
             var base=bases.get(baseId);
-            if((answer || rerank) && !llm.configuration().configured()) throw new ChatException(503,"请先配置 GLM 的 LLM_API_KEY 并重启后端。");
+            if(answer && !llm.configuration().configured()) throw new ChatException(503,"请先配置 GLM 的 LLM_API_KEY 并重启后端。");
+            if(rerank && !reranker.configuration().configured()) throw new ChatException(503,"请先配置硅基流动的 RERANK_API_KEY 并重启后端。");
             var before=snapshot(baseId); var eligible=new ArrayList<Item>(); var skipped=new ArrayList<Skipped>();
             for(var item:before) {
                 var row=item.index();
@@ -97,11 +100,11 @@ public class KnowledgeBaseRagService {
             var selected=baseline;
             boolean applied=rerank && pool.size()>1;
             if(applied) {
-                var ids=LlmReranker.select(llm,question.strip(),pool.stream().map(Hit::text).toList());
-                selected=numbered(ids.stream().map(id->pool.get(id-1)).toList());
+                var indices=reranker.select(question.strip(),pool.stream().map(Hit::text).toList());
+                selected=numbered(indices.stream().map(pool::get).toList());
                 unchanged(baseId,before);
             }
-            var rerankInfo=new RerankInfo(rerank,applied,applied?llm.configuration().model():null,pool.size(),rerank?baseline:List.of());
+            var rerankInfo=new RerankInfo(rerank,applied,applied?reranker.configuration().model():null,pool.size(),rerank?baseline:List.of());
             var retrieval=new Retrieval(baseId,base.name(),question.strip(),embedding.configuration().model(),before.size(),eligible.size(),List.copyOf(skipped),selected,mode,keywords,rerankInfo);
             if(!answer) return retrieval;
             var generated=GroundedAnswer.generate(llm,question.strip(),selected.stream().map(Hit::text).toList());
