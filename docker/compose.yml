@@ -1,5 +1,15 @@
 name: ai-knowledge
 services:
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "127.0.0.1:6380:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
   qdrant:
     image: qdrant/qdrant:v1.19.1
     ports:

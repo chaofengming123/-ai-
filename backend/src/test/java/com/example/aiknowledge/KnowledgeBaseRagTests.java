@@ -19,7 +19,7 @@ class KnowledgeBaseRagTests {
     final EmbeddingClient embedding=mock(EmbeddingClient.class);
     final LlmClient llm=mock(LlmClient.class);
     final RerankClient reranker=mock(RerankClient.class);
-    final KnowledgeBaseRagService rag=new KnowledgeBaseRagService(bases,documents,indexes,search,embedding,llm,reranker);
+    final KnowledgeBaseRagService rag=new KnowledgeBaseRagService(bases,documents,indexes,search,embedding,llm,reranker,new QuestionVectorCache());
     final LocalDateTime time=LocalDateTime.of(2026,9,23,0,0);
     final double[] vector={1,0};
     DocumentInfo document(long id) { return new DocumentInfo(id,1,"doc"+id+".txt","txt",10,"UPLOADED",time); }

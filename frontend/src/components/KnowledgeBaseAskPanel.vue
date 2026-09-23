@@ -12,7 +12,7 @@ const retrievalMode = ref('vector')
 const keywordText = ref('')
 const rerankEnabled = ref(false)
 const bypassCache = ref(false)
-const cacheLabels = { HIT: '命中：复用问题向量', MISS: '未命中：已生成并缓存', BYPASS: '跳过缓存：本次重新生成且不写缓存', NOT_USED: '未使用：没有参与检索的文档' }
+const cacheLabels = { DEGRADED: '缓存不可用或数据异常：已直接生成问题向量', HIT: '命中：复用问题向量', MISS: '未命中：已生成并缓存', BYPASS: '跳过缓存：本次重新生成且不写缓存', NOT_USED: '未使用：没有参与检索的文档' }
 const stageLabels = { EMBEDDING: '问题向量生成', VECTOR_SEARCH: '文档向量检索与校验', KEYWORD_SCAN: '关键词原文扫描与校验', RERANK: 'BGE 重排', GENERATION: 'GLM 生成与格式校验' }
 const allowed = computed(() => ['knowledge-base:read', 'document:read', 'chat:send'].every(p => auth.user?.permissions?.includes(p)))
 const { result, busy, error, run, reset } = createVectorStorage({
@@ -57,7 +57,7 @@ onBeforeUnmount(reset)
         <p>关键词按原文字面匹配，忽略大小写。它们用于查找资料，不是预期文档标注；混合检索仍会调用向量模型。</p>
       </template>
       <label><input v-model="bypassCache" type="checkbox" :disabled="busy || !allowed"> 本次跳过问题向量缓存 · 第 35 课</label>
-      <p>默认复用同一用户、同一模型配置下的问题向量，最多保存 5 分钟；文档检索和答案仍每次重新处理。后端重启会清空缓存。</p>
+      <p>默认通过 Redis 复用同一用户、同一模型配置下的问题向量，最多保存 5 分钟；缓存故障时直接计算。文档检索和答案仍每次重新处理。</p>
       <label><input v-model="rerankEnabled" type="checkbox" :disabled="busy || !allowed"> 启用 BGE 重排 · 第 33 课</label>
       <p>默认关闭。开启后，候选至少两段时额外调用一次 BAAI/bge-reranker-v2-m3，从最多六段中选出并排序最多三段；可能更慢，效果需对照原文核实。</p>
       <fieldset :disabled="busy || !allowed">

@@ -16,13 +16,14 @@ public class KnowledgeBaseRagService {
     private final EmbeddingClient embedding;
     private final LlmClient llm;
     private final RerankClient reranker;
-    private final QuestionVectorCache vectorCache=new QuestionVectorCache();
+    private final VectorCache vectorCache;
     private final Semaphore capacity=new Semaphore(2);
     private final Set<Long> activeUsers=ConcurrentHashMap.newKeySet();
     public KnowledgeBaseRagService(KnowledgeBaseService bases,DocumentMapper documents,DocumentIndexMapper indexes,
-        DocumentSearchService search,EmbeddingClient embedding,LlmClient llm,RerankClient reranker) {
+        DocumentSearchService search,EmbeddingClient embedding,LlmClient llm,RerankClient reranker,VectorCache vectorCache) {
         this.bases=bases; this.documents=documents; this.indexes=indexes; this.search=search; this.embedding=embedding; this.llm=llm;
         this.reranker=reranker;
+        this.vectorCache=vectorCache;
     }
     public record Skipped(long documentId,String fileName,String reason) {}
     public record Hit(int sourceId,long documentId,String fileName,int chunkIndex,int startOffset,int endOffset,

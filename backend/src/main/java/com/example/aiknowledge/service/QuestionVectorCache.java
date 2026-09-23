@@ -7,7 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.*;
 
 /** 单进程、按用户隔离的问题向量缓存；网络计算不占用缓存锁。 */
-public final class QuestionVectorCache {
+public final class QuestionVectorCache implements VectorCache {
     public record Result(double[] vector,String status) {}
     private record Key(long userId,String space,String questionHash) {}
     private record Entry(double[] vector,long created) {}
