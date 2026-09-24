@@ -7,12 +7,15 @@ test('switching documents aborts and ignores the previous preview', async () => 
   const state = createDocumentPreview((id, signal) => new Promise(resolve => requests.push({ resolve, signal })), () => 1)
   const first = state.showPreview({ id: 1 })
   const second = state.showPreview({ id: 2 })
+  assert.equal(state.selectedPreviewId.value, 2)
   assert.equal(requests[0].signal.aborted, true)
   requests[0].resolve({ content: 'old' }); await first
   assert.equal(state.preview.value, null); assert.equal(state.previewingId.value, 2)
   requests[1].resolve({ content: 'new' }); await second
   assert.equal(state.preview.value.content, 'new')
+  assert.equal(state.selectedPreviewId.value, 2)
   state.closePreview(); assert.equal(state.preview.value, null)
+  assert.equal(state.selectedPreviewId.value, null)
 })
 test('session changes discard text and failed extraction displays the server message', async () => {
   let version = 1, finish
@@ -24,4 +27,5 @@ test('session changes discard text and failed extraction displays the server mes
   await failed.showPreview({ id: 2 })
   assert.equal(failed.previewError.value, '文档不存在。')
   assert.equal(failed.previewingId.value, null)
+  assert.equal(failed.selectedPreviewId.value, 2)
 })

@@ -10,7 +10,6 @@ const navigation = [
   { path: '/knowledge-bases', label: '知识库', icon: '▤' },
   { path: '/documents', label: '文档资料', icon: '▧' },
   { path: '/chat', label: 'AI 问答', icon: '✧' },
-  { path: '/embeddings', label: '向量实验', icon: '⋈' },
   { path: '/login', label: '登录', icon: '○' },
   { path: '/register', label: '创建账号', icon: '＋' },
 ]

@@ -1,16 +1,18 @@
 import { ref } from 'vue'
 
 export function createDocumentPreview(fetchText, sessionVersion) {
-  const preview = ref(null), previewingId = ref(null), previewError = ref('')
+  const preview = ref(null), previewingId = ref(null), previewError = ref(''), selectedPreviewId = ref(null)
   let generation = 0, controller
   function closePreview() {
     generation++; controller?.abort(); preview.value = null; previewingId.value = null; previewError.value = ''
+    selectedPreviewId.value = null
   }
   async function showPreview(item) {
     closePreview()
     const current = generation, version = sessionVersion()
     controller = new AbortController()
     previewingId.value = item.id
+    selectedPreviewId.value = item.id
     try {
       const result = await fetchText(item.id, controller.signal)
       if (current === generation && version === sessionVersion()) preview.value = result
@@ -19,5 +21,5 @@ export function createDocumentPreview(fetchText, sessionVersion) {
         previewError.value = error.response?.data?.message || '正文预览失败，请检查后端或稍后再试。'
     } finally { if (current === generation) previewingId.value = null }
   }
-  return { preview, previewingId, previewError, closePreview, showPreview }
+  return { preview, previewingId, previewError, selectedPreviewId, closePreview, showPreview }
 }
