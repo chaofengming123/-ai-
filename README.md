@@ -77,6 +77,60 @@ python3 scripts/check-deployment.py
 
 当前登录保持功能是在同一浏览器、同一网址下，离开后五分钟内尝试恢复，并向后端重新验证身份。Token 本身过期、主动退出或验证失败仍需要登录。`localhost:8088`、`127.0.0.1:8088` 和 `127.0.0.1:5173` 的浏览器存储不同；Windows 与 Mac 浏览器也不共享登录状态。Git 同步的是这段功能代码，不会同步 Token、浏览器设置或数据库账号。Mac 上请先在固定入口登录一次，再测试五分钟内返回。
 
+## Mac 修改后，Windows 如何更新
+
+如果 Windows 只是用浏览器访问 Mac 服务，只需在 Mac 更新部署，Windows 刷新页面即可。以下步骤用于 Windows 自己运行 Docker 的情况；Git 只同步代码，不同步两台电脑的数据库或浏览器登录状态。
+
+打开 Docker Desktop，在 Windows 项目根目录运行。先确认当前分支为 `codex/initialize`，本地修改已妥善提交；拉取发生冲突或失败时先处理问题，不要继续部署，也不要强制覆盖本地修改。
+
+### 只有前端修改
+
+以下写法适用于 Windows PowerShell，不需要 PowerShell 7 的 `&&`：
+
+```powershell
+git pull --ff-only origin codex/initialize
+if ($LASTEXITCODE -ne 0) { throw '代码拉取失败，请先处理 Git 问题' }
+npm ci --prefix frontend
+if ($LASTEXITCODE -ne 0) { throw '前端依赖安装失败' }
+npm test --prefix frontend
+if ($LASTEXITCODE -ne 0) { throw '前端测试失败' }
+npm run build --prefix frontend
+if ($LASTEXITCODE -ne 0) { throw '前端构建失败' }
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml up -d --build --no-deps --wait web
+if ($LASTEXITCODE -ne 0) { throw '前端部署失败，请查看日志' }
+python scripts/check-deployment.py
+if ($LASTEXITCODE -ne 0) { throw '部署检查失败，请查看服务状态' }
+```
+
+`--no-deps` 只更新 web，要求现有后端和数据服务已运行。成功后刷新 `http://127.0.0.1:8088`；必要时按 `Ctrl + F5` 强制刷新。如果配置了其他端口，使用对应网址，并将该网址作为检查脚本参数。
+
+### 前后端都有修改，或不确定修改范围
+
+需要 Java 17。更新前等待索引任务结束，保留原来的 `docker/.env` 和数据卷：
+
+```powershell
+git pull --ff-only origin codex/initialize
+if ($LASTEXITCODE -ne 0) { throw '代码拉取失败，请先处理 Git 问题' }
+npm ci --prefix frontend
+if ($LASTEXITCODE -ne 0) { throw '前端依赖安装失败' }
+npm test --prefix frontend
+if ($LASTEXITCODE -ne 0) { throw '前端测试失败' }
+npm run build --prefix frontend
+if ($LASTEXITCODE -ne 0) { throw '前端构建失败' }
+.\scripts\backend.ps1 -DskipTests package
+if ($LASTEXITCODE -ne 0) { throw '后端打包失败' }
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml config --quiet
+if ($LASTEXITCODE -ne 0) { throw '部署配置无效' }
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml up -d --build --wait --wait-timeout 180
+if ($LASTEXITCODE -ne 0) { throw '部署启动失败，请查看日志' }
+python scripts/check-deployment.py
+if ($LASTEXITCODE -ne 0) { throw '部署检查失败，请查看服务状态' }
+```
+
+只有后端修改时，可省略上述三步 npm 操作，在部署命令中指定 `backend`；这要求网页及依赖镜像已经存在，仍需执行后端打包和部署检查。仅 README、讲义变化时，拉取代码即可。
+
+`-DskipTests` 仅跳过本次后端测试，不代表验证通过；只读部署检查也不代替登录、上传和问答验收。更新不需要重建数据库，日常更新不要使用 `compose.restore.yml` 或 `down -v`。需要回滚数据库迁移时另行处理，不能只换回旧镜像。
+
 ## Docker 完整部署
 
 ### Windows PowerShell
