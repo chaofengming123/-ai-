@@ -354,7 +354,7 @@ class DocumentIndexTests {
         verify(qdrant).remove(argThat(name->!name.equals(previous)));
     }
     @Test void inputAndPermissionFailuresDoNotSendTextToModel() throws Exception {
-        long id=upload("字".repeat(4001));
+        long id=upload("字".repeat(10001));
         assertEquals(401,request("POST",id,null).statusCode());
         jdbc.update("DELETE FROM app_user_role WHERE user_id=?",userId); access.assignRole(userId,"USER");
         assertEquals(403,request("POST",id,token).statusCode()); assertEquals(200,request("GET",id,token).statusCode());
@@ -364,7 +364,7 @@ class DocumentIndexTests {
         verify(embedding,never()).embed(anyList());
     }
     @Test void secondBatchFailurePublishesNothingAndModelChangeMarksOldVersionIncompatible() {
-        long id=upload("字".repeat(4000)); var calls=new AtomicInteger();
+        long id=upload("字".repeat(10000)); var calls=new AtomicInteger();
         when(embedding.embed(anyList())).thenAnswer(call->{
             if(calls.incrementAndGet()==2) throw new ChatException(503,"模拟第二批限流");
             return ((List<?>)call.getArgument(0)).stream().map(x->new double[]{1,0}).toList();
@@ -372,7 +372,10 @@ class DocumentIndexTests {
         assertThrows(ChatException.class,()->indexes.build(id)); assertEquals(2,calls.get());
         assertNull(rows.find(id).activeCollection()); verify(qdrant,never()).upsert(anyString(),anyList());
         when(embedding.embed(anyList())).thenAnswer(call->((List<?>)call.getArgument(0)).stream().map(x->new double[]{1,0}).toList());
-        indexes.build(id); when(embedding.spaceId()).thenReturn("new-space"); assertFalse(indexes.status(id).currentModel());
+        var ready=indexes.build(id);
+        assertEquals(10000,ready.characters()); assertTrue(ready.chunks()>12);
+        assertEquals(ready.chunks(),searches.scanForKeywords(id,"字").matches().size());
+        when(embedding.spaceId()).thenReturn("new-space"); assertFalse(indexes.status(id).currentModel());
     }
     @Test void processingIsVisibleAndDuplicateBuildDoesNotCallModelAgain() throws Exception {
         long id=upload("文字"); var entered=new CountDownLatch(1); var release=new CountDownLatch(1);

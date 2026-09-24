@@ -10,6 +10,8 @@ import com.example.aiknowledge.exception.*;
 
 @Service
 public class DocumentIndexService {
+    // 10000 字符在 800/100 分块与段落边界回退下最多约 27 块，留出安全余量。
+    public static final int MAX_CHUNKS=32;
     private final DocumentService files;
     private final DocumentMapper documents;
     private final DocumentIndexMapper indexes;
@@ -74,7 +76,7 @@ public class DocumentIndexService {
             var text=DocumentTextExtractor.forIndex(file.name(),file.bytes());
             if(text.content().isBlank()) throw new ChatException(400,"未提取到可索引文字，请提供有文本内容的文件；扫描图片需要先做 OCR。");
             var chunks=TextChunker.split(text.content(),800,100);
-            if(chunks.size()>12) throw new ChatException(400,"本课最多索引 12 个分块，请拆分文件。");
+            if(chunks.size()>MAX_CHUNKS) throw new ChatException(400,"最多索引 "+MAX_CHUNKS+" 个分块，请拆分文件。");
             var vectors=new ArrayList<double[]>();
             for(int from=0;from<chunks.size();from+=5) {
                 if(System.nanoTime()>deadline) throw new ChatException(504,"索引处理时间过长，请缩短文档后重试。");

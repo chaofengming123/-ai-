@@ -19,7 +19,7 @@ onBeforeUnmount(stop)
   <section class="chunk-panel" aria-label="文档索引">
     <button class="secondary-button" @click="$emit('close')">关闭索引面板</button>
     <h2>{{ document.fileName }} · 文档索引</h2>
-    <p>建立索引会将提取的正文分块发送到硅基流动。每份正文最多 4000 字符、PDF 最多 50 页；超限会拒绝，不保存截断内容。扫描图片不做 OCR。</p>
+    <p>建立索引会将提取的正文分块发送到硅基流动。每份正文最多 10000 字符、PDF 最多 50 页；超限会拒绝，不保存截断内容。扫描图片不做 OCR。</p>
     <p v-if="status">处理状态：{{ labels[status.state] || status.state }}</p>
     <p v-if="status?.state === 'PROCESSING'">后台任务已接受，页面每两秒查询状态。若后端曾意外退出，距上次开始十分钟后可重新建立。</p>
     <p v-if="status?.recoveryAllowed">上次任务已超过恢复等待期，可重新提交。重新提交会从头处理文档。</p>

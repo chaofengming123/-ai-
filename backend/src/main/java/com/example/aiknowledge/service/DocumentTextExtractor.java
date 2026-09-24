@@ -17,7 +17,7 @@ public final class DocumentTextExtractor {
         return extract(name,bytes,MAX_CHARACTERS,MAX_PDF_PAGES,false);
     }
     public static Text forIndex(String name,byte[] bytes) {
-        return extract(name,bytes,4000,50,true);
+        return extract(name,bytes,10000,50,true);
     }
     private static Text extract(String name,byte[] bytes,int characters,int pages,boolean strict) {
         String type=name.substring(name.lastIndexOf('.')+1).toLowerCase(Locale.ROOT);
@@ -54,7 +54,7 @@ public final class DocumentTextExtractor {
                 } else output.write(new String(bytes,StandardCharsets.UTF_8));
             }
         } catch(PreviewLimit reached) {
-            if(strict) throw new DocumentException(DocumentException.Kind.INVALID_INPUT,"正文超过本课索引的 4000 字符上限，请拆分文件；未保存部分索引。");
+            if(strict) throw new DocumentException(DocumentException.Kind.INVALID_INPUT,"正文超过索引的 10000 字符上限，请拆分文件；未保存部分索引。");
             output.truncated=true;
         }
         catch(DocumentException error) { throw error; }

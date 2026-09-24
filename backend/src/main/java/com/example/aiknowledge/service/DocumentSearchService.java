@@ -46,7 +46,7 @@ public class DocumentSearchService {
             tools.jackson.databind.JsonNode points;
             if(scan) {
                 points=qdrant.scanDocument(index.activeCollection());
-                if(index.chunkCount()<1 || index.chunkCount()>12 || !points.isArray() || points.size()!=index.chunkCount())
+                if(index.chunkCount()<1 || index.chunkCount()>DocumentIndexService.MAX_CHUNKS || !points.isArray() || points.size()!=index.chunkCount())
                     throw new ChatException(502,"文档索引片段不完整，请检查或重建索引。");
             } else {
                 var vector=suppliedVector==null?embedding.embed(List.of(query.strip())).get(0):suppliedVector;

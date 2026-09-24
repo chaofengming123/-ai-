@@ -6,6 +6,16 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TextChunkerTests {
+    @Test void tenThousandCharactersFitIndexBudgetWithoutLosingTheTail() {
+        for(String text:new String[]{"字".repeat(10000),("字".repeat(479)+"\n").repeat(21).substring(0,10000)}) {
+            var chunks=TextChunker.split(text,800,100);
+            assertTrue(chunks.size()>12);
+            assertTrue(chunks.size()<=com.example.aiknowledge.service.DocumentIndexService.MAX_CHUNKS);
+            assertEquals(10000,chunks.get(chunks.size()-1).endOffset());
+            int covered=0;
+            for(var chunk:chunks) { assertTrue(chunk.startOffset()<=covered); covered=chunk.endOffset(); }
+        }
+    }
     @Test void fixedWindowsOverlapAndOffsetsMatchOriginal() {
         String source="a".repeat(320);
         var chunks=TextChunker.split(source,200,50);

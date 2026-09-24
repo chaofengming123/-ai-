@@ -11,8 +11,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DocumentTextExtractorTests {
     @Test void indexingRejectsOverflowAndReadsBeyondPreviewPageLimit() throws Exception {
-        assertThrows(DocumentException.class,()->DocumentTextExtractor.forIndex("a.txt","字".repeat(4001).getBytes(StandardCharsets.UTF_8)));
-        assertEquals(4000,DocumentTextExtractor.forIndex("a.txt","字".repeat(4000).getBytes(StandardCharsets.UTF_8)).content().length());
+        assertThrows(DocumentException.class,()->DocumentTextExtractor.forIndex("a.txt","字".repeat(10001).getBytes(StandardCharsets.UTF_8)));
+        assertEquals(10000,DocumentTextExtractor.forIndex("a.txt","字".repeat(10000).getBytes(StandardCharsets.UTF_8)).content().length());
         assertThrows(DocumentException.class,()->DocumentTextExtractor.forIndex("a.pdf",DocumentFixtures.pdf(51,false)));
         try(var pdf=new PDDocument();var output=new ByteArrayOutputStream()) {
             for(int i=0;i<21;i++) pdf.addPage(new PDPage());

@@ -28,8 +28,8 @@ class ExtendedDocumentTests {
         assertThrows(DocumentException.class,()->DocumentFormatValidator.validate("rtf",bytes("just text")));
     }
     @Test void newFormatsRespectIndexAndPreviewBounds() {
-        assertThrows(DocumentException.class,()->DocumentTextExtractor.forIndex("test.html",bytes("<p>"+"a".repeat(4001)+"</p>")));
-        assertThrows(DocumentException.class,()->DocumentTextExtractor.forIndex("test.rtf",bytes("{\\rtf1 "+"a".repeat(4001)+"}")));
+        assertThrows(DocumentException.class,()->DocumentTextExtractor.forIndex("test.html",bytes("<p>"+"a".repeat(10001)+"</p>")));
+        assertThrows(DocumentException.class,()->DocumentTextExtractor.forIndex("test.rtf",bytes("{\\rtf1 "+"a".repeat(10001)+"}")));
         var preview=DocumentTextExtractor.extract("test.csv",bytes("a".repeat(40001)));
         assertTrue(preview.truncated()); assertEquals(40000,preview.content().length());
     }
