@@ -53,14 +53,8 @@ function submit() { if (canChat.value && configuration.value?.configured) void s
     <div class="page-heading">
       <div><p class="eyebrow">团队知识空间</p><h1 id="chat-title">AI 问答</h1></div>
     </div>
-    <p class="page-description">一个入口，查询团队资料或讨论日常问题。自动模式先检索已索引文档，相关资料附来源回答，否则切换普通对话。</p>
     <p v-if="!canChat" class="load-error">当前账号没有 AI 对话权限，请核对登录状态或联系管理员。</p>
     <div v-else>
-      <div v-if="canRead" class="assistant-toolbar">
-        <label>回答方式<select v-model="mode" :disabled="isBusy"><option value="auto">自动判断</option><option value="knowledge">仅知识库</option><option value="general">普通对话</option></select></label>
-        <label v-if="mode !== 'general'">检索范围<select v-model="baseId" :disabled="isBusy || bases.isLoading"><option value="">全部知识库（最多 5 个）</option><option v-for="base in bases.knowledgeBases" :key="base.id" :value="String(base.id)">{{ base.name }}</option></select></label>
-        <span class="form-hint">切换范围将开启新对话</span>
-      </div>
       <p v-if="canRead && bases.loadError" class="load-error" role="alert">{{ bases.loadError }} <button class="secondary-button" @click="bases.loadKnowledgeBases()">重新加载</button></p>
       <div class="load-controls">
         <span v-if="canManage && configuration?.configured">模型：{{ configuration.model }}</span>
@@ -85,6 +79,11 @@ function submit() { if (canChat.value && configuration.value?.configured) void s
       <form class="chat-form" @submit.prevent="submit">
         <label for="chat-question">你的问题</label>
         <textarea id="chat-question" v-model="draft" rows="3" :maxlength="canRead && mode !== 'general' ? 1000 : 2000" :disabled="isBusy" placeholder="输入问题；知识库提问请写明主题和完整问题。"></textarea>
+        <div v-if="canRead" class="assistant-toolbar">
+          <label>回答方式<select v-model="mode" :disabled="isBusy"><option value="auto">自动判断</option><option value="knowledge">仅知识库</option><option value="general">普通对话</option></select></label>
+          <label v-if="mode !== 'general'">检索范围<select v-model="baseId" :disabled="isBusy || bases.isLoading"><option value="">全部知识库（最多 5 个）</option><option v-for="base in bases.knowledgeBases" :key="base.id" :value="String(base.id)">{{ base.name }}</option></select></label>
+          <span class="form-hint">切换范围将开启新对话</span>
+        </div>
         <div><span>{{ draft.length }} / {{ canRead && mode !== 'general' ? 1000 : 2000 }}</span><button type="submit" class="primary-button" :disabled="isBusy || !configuration?.configured || !draft.trim()">{{ isBusy ? '等待回复中' : '发送' }}</button></div>
         <button v-if="isBusy" type="button" class="secondary-button" @click="stop">停止接收</button>
       </form>

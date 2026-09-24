@@ -34,3 +34,21 @@ test('chat shows failures once outside transcript, without repeated incomplete b
   assert.equal((descriptor.template.content.match(/v-if="error"/g) || []).length, 1)
   assert.match(source, /message\.role !== 'assistant' \|\| message\.content/)
 })
+
+test('chat defaults to auto and places answer controls below the question input', () => {
+  const source = readFileSync(new URL('../src/views/ChatView.vue', import.meta.url), 'utf8')
+  const { descriptor } = parse(source)
+  assert.match(descriptor.scriptSetup.content, /const mode = ref\('auto'\)/)
+  assert.doesNotMatch(descriptor.template.content, /一个入口，查询团队资料/)
+  const ast = parseTemplate(descriptor.template.content)
+  let form
+  function visit(node) {
+    if (node.tag === 'form') form = node
+    for (const child of node.children || []) visit(child)
+  }
+  visit(ast)
+  const inputIndex = form.children.findIndex(node => node.tag === 'textarea')
+  const controlsIndex = form.children.findIndex(node => node.props?.some(prop => prop.name === 'class' && prop.value?.content === 'assistant-toolbar'))
+  assert.ok(inputIndex >= 0 && controlsIndex > inputIndex)
+  assert.equal(form.children[controlsIndex].children.filter(node => node.tag === 'label').length, 2)
+})
