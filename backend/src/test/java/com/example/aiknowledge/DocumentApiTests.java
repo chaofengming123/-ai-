@@ -180,6 +180,7 @@ class DocumentApiTests {
         assertEquals(400,upload(baseId,"empty.txt",new byte[0],token).statusCode());
         assertEquals(400,upload(baseId,"wrong.pdf",text,token).statusCode());
         assertEquals(400,upload(baseId,"wrong.docx",text,token).statusCode());
+        assertEquals(400,upload(baseId,"wrong.doc",text,token).statusCode());
         assertEquals(400,upload(baseId,"encrypted.pdf",DocumentFixtures.pdf(1,true),token).statusCode());
         assertEquals(400,upload(baseId,"binary.txt",new byte[]{0,1,2},token).statusCode());
         assertEquals(400,upload(baseId,"invalid.txt",new byte[]{(byte)0xff},token).statusCode());
@@ -190,8 +191,8 @@ class DocumentApiTests {
     }
 
     @Test void binaryFormatsUploadAndDownloadByteForByte() throws Exception {
-        for(String type:List.of("pdf","docx")) {
-            byte[] bytes=type.equals("pdf")?DocumentFixtures.pdf(1,false):DocumentFixtures.docx();
+        for(String type:List.of("pdf","docx","doc")) {
+            byte[] bytes=type.equals("pdf")?DocumentFixtures.pdf(1,false):type.equals("doc")?LegacyWordTests.fixture():DocumentFixtures.docx();
             var response=upload(baseId,"lesson."+type.toUpperCase(Locale.ROOT),bytes,token);
             assertEquals(201,response.statusCode(),response.body());
             var info=json.readTree(response.body());
@@ -200,6 +201,11 @@ class DocumentApiTests {
             var downloaded=HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/documents/"+info.get("id").asLong()+"/download"))
                     .header("Authorization","Bearer "+token).GET().build(),HttpResponse.BodyHandlers.ofByteArray());
             assertEquals(200,downloaded.statusCode()); assertArrayEquals(bytes,downloaded.body());
+            if(type.equals("doc")) {
+                var preview=request("GET","/api/documents/"+info.get("id").asLong()+"/text",null,null,token);
+                assertEquals(200,preview.statusCode(),preview.body());
+                assertTrue(json.readTree(preview.body()).path("content").asText().contains("This is a simple file"));
+            }
         }
     }
 

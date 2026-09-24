@@ -25,13 +25,14 @@ Vue 3 + Spring Boot + MySQL 的团队知识空间，支持权限管理、文档�
 
 ## 文档格式
 
-支持 `.txt`、`.md`、`.pdf`、`.docx`、`.csv`、`.tsv`、`.json`、`.html`、`.htm`、`.rtf`，均可上传、下载、预览和建立索引。
+支持 `.txt`、`.md`、`.pdf`、`.doc`、`.docx`、`.csv`、`.tsv`、`.json`、`.html`、`.htm`、`.rtf`，均可上传、下载、预览和建立索引。
 
 - 每份最多 **5 MB**。文本、表格文本、JSON、HTML 使用 UTF-8；JSON 校验语法。
+- DOC 支持 Word 97–2003 二进制格式，使用 [Apache POI HWPF](https://poi.apache.org/components/document/) 提取主文档文字；加密、含宏、损坏文件或仅改后缀的文件会被拒绝。Word 6/95 文件请先另存为 Word 97–2003 DOC 或 DOCX。
 - DOCX 提取主文档段落和表格，RTF 提取文字；HTML 不执行脚本或加载外部资源。
 - PDF 须未加密、最多 500 页；只读取文本层，不支持扫描件 OCR。
 - 预览最多 40000 字符，PDF 预览前 20 页。索引最多 4000 字符、PDF 最多 50 页，超限需拆分；上传成功不代表可以完整索引。
-- 不支持旧 `.doc`、带宏 Office 文件、`.xlsx`、`.pptx`；请导出 DOCX、CSV 或 PDF，不能只改后缀。
+- 不支持带宏 Office 文件、`.xlsx`、`.pptx`；请导出 DOCX、CSV 或 PDF，不能只改后缀。
 
 ## 环境和配置
 

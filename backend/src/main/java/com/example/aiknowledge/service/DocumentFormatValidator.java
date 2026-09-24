@@ -16,7 +16,7 @@ import com.example.aiknowledge.exception.DocumentException;
 
 /** 校验上传格式，不提取正文，也不改写文件。 */
 public final class DocumentFormatValidator {
-    public static final Set<String> TYPES=Set.of("txt","md","pdf","docx","csv","tsv","json","html","htm","rtf");
+    public static final Set<String> TYPES=Set.of("txt","md","pdf","doc","docx","csv","tsv","json","html","htm","rtf");
     private DocumentFormatValidator() {}
     private static final int MAX_ENTRIES=128, MAX_ENTRY_BYTES=4*1024*1024, MAX_EXPANDED_BYTES=8*1024*1024;
     private static final String CONTENT_TYPES="http://schemas.openxmlformats.org/package/2006/content-types";
@@ -40,7 +40,8 @@ public final class DocumentFormatValidator {
             }
             case "pdf" -> pdf(bytes);
             case "docx" -> docx(bytes);
-            default -> throw invalid("支持 TXT、Markdown、PDF、DOCX、CSV、TSV、JSON、HTML 和 RTF。");
+            case "doc" -> LegacyWordReader.read(bytes);
+            default -> throw invalid("支持 TXT、Markdown、PDF、DOC、DOCX、CSV、TSV、JSON、HTML 和 RTF。");
         }
     }
     private static DocumentException invalid(String message) {

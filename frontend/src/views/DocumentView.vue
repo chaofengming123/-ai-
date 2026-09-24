@@ -137,7 +137,7 @@ async function submit() {
       <div><p class="eyebrow">团队知识空间</p><h1 id="documents-title">文档管理</h1></div>
     </div>
     <p class="page-description">{{ canUpload ? '上传与整理团队资料，建立索引后即可用于 AI 问答。' : '查阅和下载团队资料，前往 AI 问答获取带来源的回答。' }}</p>
-    <div class="document-summary"><span>支持 TXT / MD / PDF / DOCX / CSV / TSV / JSON / HTML / RTF · 每份最多 5 MB</span><RouterLink v-if="canChat" to="/chat" class="primary-button page-link">前往 AI 问答</RouterLink></div>
+    <div class="document-summary"><span>支持 TXT / MD / PDF / DOC / DOCX / CSV / TSV / JSON / HTML / RTF · 每份最多 5 MB</span><RouterLink v-if="canChat" to="/chat" class="primary-button page-link">前往 AI 问答</RouterLink></div>
     <div v-if="bases.loadError" class="load-error" role="alert">
       <p>{{ bases.loadError }}</p><button class="secondary-button" @click="loadBases">重新加载知识库</button>
     </div>
@@ -152,7 +152,7 @@ async function submit() {
     </div>
     <form v-if="canUpload && selectedId" class="document-upload" @submit.prevent="submit">
       <label for="document-file">选择文档</label>
-      <input id="document-file" ref="fileInput" type="file" accept=".txt,.md,.pdf,.docx,.csv,.tsv,.json,.html,.htm,.rtf" :disabled="uploading" @change="file = $event.target.files[0] ?? null; uploadError = ''; notice = ''">
+      <input id="document-file" ref="fileInput" type="file" accept=".txt,.md,.pdf,.doc,.docx,.csv,.tsv,.json,.html,.htm,.rtf" :disabled="uploading" @change="file = $event.target.files[0] ?? null; uploadError = ''; notice = ''">
       <button type="submit" class="primary-button" :disabled="uploading || loading">{{ uploading ? '正在上传……' : '上传文档' }}</button>
     </form>
     <p v-else-if="selectedId" class="demo-note">当前账号没有上传权限，可联系管理员分配编辑者角色。</p>

@@ -60,7 +60,7 @@ public class DocumentService {
             throw new DocumentException(INVALID_INPUT, "文件名需为 1–180 个字符，不能包含路径或控制字符。");
         String type = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
         if (!name.contains(".") || !DocumentFormatValidator.TYPES.contains(type))
-            throw new DocumentException(INVALID_INPUT, "支持 TXT、Markdown、PDF、DOCX、CSV、TSV、JSON、HTML 和 RTF。");
+            throw new DocumentException(INVALID_INPUT, "支持 TXT、Markdown、PDF、DOC、DOCX、CSV、TSV、JSON、HTML 和 RTF。");
         byte[] bytes;
         try (var input = file.getInputStream()) {
             bytes = input.readNBytes(MAX_BYTES + 1);

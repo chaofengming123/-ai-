@@ -26,7 +26,9 @@ public final class DocumentTextExtractor {
         var output=new PreviewWriter(characters);
         boolean pageLimited=false;
         try {
-            if(type.equals("docx")) {
+            if(type.equals("doc")) {
+                output.write(LegacyWordReader.read(bytes));
+            } else if(type.equals("docx")) {
                 // 复用 ZIP 限额、CRC、关系与安全 XML 校验，避免另建不受保护的解压入口。
                 var document=DocumentFormatValidator.docx(bytes);
                 var body=(Element)document.getElementsByTagNameNS(document.getNamespaceURI(),"body").item(0);
@@ -66,6 +68,7 @@ public final class DocumentTextExtractor {
         String note=switch(type) {
             case "pdf" -> "仅提取 PDF 文本层，不识别扫描图片；多栏和表格的阅读顺序可能不准确。";
             case "docx" -> "提取主文档段落和表格中的文字；不含页眉页脚、图片、批注、文本框、自动编号或完整排版。";
+            case "doc" -> "提取 Word 97–2003 DOC 主文档文字；不保留原排版、图片、页眉页脚或嵌入对象，不执行字段或宏。";
             case "html","htm" -> "仅提取 HTML 文字，不执行脚本、不加载外部链接或图片。";
             case "rtf" -> "仅提取 RTF 文字，不保留样式、图片或嵌入对象。";
             case "csv","tsv" -> "按 UTF-8 读取表格文本，保留分隔符；不会执行单元格公式。";
