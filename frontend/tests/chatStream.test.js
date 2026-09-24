@@ -78,9 +78,48 @@ test('reset aborts old stream and late deltas cannot alter the new conversation'
   assert.equal(requests[0].signal.aborted, true)
   chat.draft.value = 'new'; const current = chat.send()
   requests[0].delta('旧内容'); requests[0].resolve({ truncated: false }); await old
-  assert.equal(chat.messages.value.at(-1).content, ''); assert.equal(chat.isBusy.value, true)
+  assert.equal(chat.messages.value.length, 0); assert.equal(chat.isBusy.value, true)
   requests[1].delta('新内容'); requests[1].resolve({ truncated: false }); await current
   assert.equal(chat.messages.value.at(-1).content, '新内容')
+})
+
+test('question stays only in draft until first meaningful delta, then streams without duplicate bubbles', async () => {
+  let delta, finish
+  const chat = createStreamConversation((messages, signal, onDelta) => {
+    delta = onDelta
+    return new Promise(resolve => { finish = resolve })
+  }, () => 1)
+  chat.draft.value = '我的问题'
+  const pending = chat.send()
+  assert.equal(chat.messages.value.length, 0)
+  assert.equal(chat.draft.value, '我的问题')
+  delta(' \n')
+  assert.equal(chat.messages.value.length, 0)
+  delta('第一段')
+  assert.equal(chat.messages.value.length, 2)
+  assert.equal(chat.messages.value[0].content, '我的问题')
+  delta('第二段')
+  assert.equal(chat.messages.value.length, 2)
+  assert.equal(chat.messages.value[1].content, ' \n第一段第二段')
+  finish({ truncated: false }); await pending
+  assert.equal(chat.draft.value, '')
+})
+
+test('failure, empty answer and cancellation before first text never enter the transcript', async () => {
+  for (const kind of ['failure', 'empty', 'stop']) {
+    const chat = createStreamConversation((messages, signal, delta) => {
+      if (kind === 'failure') throw new Error('模型限流')
+      if (kind === 'empty') { delta(' '); return Promise.resolve({ truncated: false }) }
+      return new Promise((_, reject) => signal.addEventListener('abort', () => { delta('迟到内容'); reject(new Error('stopped')) }))
+    }, () => 1)
+    chat.draft.value = '保留问题'
+    const pending = chat.send()
+    if (kind === 'stop') chat.stop()
+    await pending
+    assert.equal(chat.messages.value.length, 0)
+    assert.equal(chat.draft.value, '保留问题')
+    assert.ok(chat.error.value)
+  }
 })
 
 test('stop and output truncation keep drafts and never commit incomplete history', async () => {

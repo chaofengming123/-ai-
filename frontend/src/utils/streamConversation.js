@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { buildChatMessages } from './chat.js'
 
 export function createStreamConversation(sendRequest, getSessionVersion) {
@@ -18,11 +18,18 @@ export function createStreamConversation(sendRequest, getSessionVersion) {
     const active = () => current === generation && version === getSessionVersion()
     controller = new AbortController()
     const signal = controller.signal
-    messages.value.push({ role: 'user', content: question }, { role: 'assistant', content: '', incomplete: false })
-    const answer = messages.value.at(-1)
+    const answer = reactive({ role: 'assistant', content: '', incomplete: false })
+    let published = false
     isBusy.value = true; error.value = ''; notice.value = ''
     try {
-      const result = await sendRequest(request, signal, text => { if (active()) answer.content += text })
+      const result = await sendRequest(request, signal, text => {
+        if (!active() || signal.aborted) return
+        answer.content += text
+        if (!published && answer.content.trim()) {
+          messages.value.push({ role: 'user', content: question }, answer)
+          published = true
+        }
+      })
       if (!active()) return
       if (signal.aborted) throw new Error('已停止接收。')
       if (!answer.content.trim()) throw new Error('模型没有返回有效文本。')
