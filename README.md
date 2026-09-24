@@ -60,6 +60,23 @@ RERANK_API_KEY=你的硅基流动密钥
 
 普通聊天需要 LLM；索引和知识库问答还需要 Embedding。Rerank 是现有高级检索接口的可选配置，统一问答默认使用向量检索。两家服务密钥不能互换；配置示例也见 `docker/.env.*.example`。
 
+## Windows 修改已拉取，但 Mac 网页没有变化
+
+`git pull` 更新源码，不会更新正在运行的 Docker 镜像。先确认 Windows 已提交并推送到 Mac 使用的同一分支。若本次只有前端改动，在 Mac 项目根目录执行下面这一组命令；`&&` 会在任一步失败时停止，避免把旧产物重新部署：
+
+```bash
+git pull --ff-only origin codex/initialize &&
+npm ci --prefix frontend &&
+npm test --prefix frontend &&
+npm run build --prefix frontend &&
+docker compose --env-file docker/.env -f docker/compose.yml -f docker/compose.app.yml up -d --build --no-deps --wait web &&
+python3 scripts/check-deployment.py
+```
+
+完成后打开 `http://127.0.0.1:8088` 并刷新页面；仍显示旧内容时使用 `Command + Shift + R`。只有前端变化才用这条流程；后端也修改时，使用下方完整部署步骤重新打包 JAR 并更新后端。
+
+当前登录保持功能是在同一浏览器、同一网址下，离开后五分钟内尝试恢复，并向后端重新验证身份。Token 本身过期、主动退出或验证失败仍需要登录。`localhost:8088`、`127.0.0.1:8088` 和 `127.0.0.1:5173` 的浏览器存储不同；Windows 与 Mac 浏览器也不共享登录状态。Git 同步的是这段功能代码，不会同步 Token、浏览器设置或数据库账号。Mac 上请先在固定入口登录一次，再测试五分钟内返回。
+
 ## Docker 完整部署
 
 ### Windows PowerShell
