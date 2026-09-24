@@ -2,6 +2,35 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createIndexMonitor } from '../src/utils/indexMonitor.js'
 
+test('default timers preserve the browser receiver for refresh, polling and stop', async t => {
+  let scheduled, builds = 0, queries = 0
+  t.mock.method(globalThis, 'setTimeout', function (callback, delay) {
+    assert.equal(this, globalThis, 'browser setTimeout requires the global receiver')
+    assert.equal(delay, 2000)
+    scheduled = callback
+    return 1
+  })
+  t.mock.method(globalThis, 'clearTimeout', function () {
+    assert.equal(this, globalThis, 'browser clearTimeout requires the global receiver')
+    scheduled = null
+  })
+  const monitor = createIndexMonitor({
+    status: async () => ({ state: ++queries === 1 ? 'NOT_INDEXED' : 'READY' }),
+    build: async () => { builds++; return { state: 'PROCESSING' } },
+  }, () => 1)
+  await monitor.refresh()
+  assert.equal(monitor.status.value.state, 'NOT_INDEXED')
+  await monitor.refresh('build')
+  assert.equal(builds, 1)
+  await scheduled()
+  assert.equal(monitor.status.value.state, 'READY')
+  assert.equal(scheduled, null)
+  await monitor.refresh('build')
+  monitor.stop()
+  assert.equal(scheduled, null)
+  assert.equal(monitor.status.value, null)
+})
+
 test('polls only status after acceptance and stops at completion', async () => {
   let scheduled, calls = 0
   const timers = { set: fn => { scheduled = fn; return 1 }, clear: () => { scheduled = null }, now: () => 0 }

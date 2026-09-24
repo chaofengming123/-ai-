@@ -1,7 +1,14 @@
 import { ref } from 'vue'
 import { createVectorStorage } from './vectorStorage.js'
 
-export function createIndexMonitor(api, sessionVersion, timers = { set: setTimeout, clear: clearTimeout, now: Date.now }) {
+// Browser timers require their global receiver; do not store the native methods directly.
+const defaultTimers = {
+  set: (callback, delay) => globalThis.setTimeout(callback, delay),
+  clear: handle => globalThis.clearTimeout(handle),
+  now: () => Date.now(),
+}
+
+export function createIndexMonitor(api, sessionVersion, timers = defaultTimers) {
   const store = createVectorStorage(api, sessionVersion)
   const notice = ref('')
   let timer, stopped = false, deadline = 0
