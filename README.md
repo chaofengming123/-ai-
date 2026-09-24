@@ -156,6 +156,8 @@ IDEA：将 `backend/pom.xml` 导入 Maven，项目 SDK、Maven JDK 和运行 JRE
 
 在 `/register` 注册，再登录。新账号为 USER。把 `learner` 替换为已注册用户名：
 
+登录后刷新页面可恢复身份，关闭页面后 5 分钟内重新打开也可恢复（同一浏览器、同一访问地址）。页面可见时更新这个返回窗口，恢复前会向后端核验身份和权限，不延长原令牌有效期。主动点击“退出”会立即清除本机记录并通知其他已打开页面退出。此功能会在浏览器本地保存访问令牌，不保存密码；共用电脑请主动退出。超过窗口的记录在再次打开时清除，浏览器禁用本地存储时仍只能保持当前页面登录。
+
 ```powershell
 # Windows：预览，再应用
 python scripts/set-user-role.py --username learner --role ADMIN

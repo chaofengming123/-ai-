@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { useKnowledgeBaseStore } from './knowledgeBases.js'
 import { hasPermission, canManageKnowledgeBases as canManage, roleLabel as labelRole } from '../utils/permissions.js'
 import { loginUser, fetchCurrentUser } from '../api/auth.js'
+import { rememberLogin, readLoginMemory, clearLoginMemory } from '../utils/loginMemory.js'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -20,8 +21,44 @@ export const useAuthStore = defineStore('auth', () => {
   const accessToken = computed(() => token.value)
   let generation = 0
   let expiryTimer
+  let tokenExpiresAt = 0
+  function rememberSession() {
+    if (isLoggedIn.value) rememberLogin(token.value, tokenExpiresAt)
+  }
+  function scheduleExpiry() {
+    clearTimeout(expiryTimer)
+    expiryTimer = setTimeout(() => logout('登录已到期，请重新登录。'), Math.max(0, tokenExpiresAt - Date.now()))
+    expiryTimer.unref?.()
+  }
+  async function restoreSession() {
+    if (isBusy.value || isLoggedIn.value) return
+    const saved = readLoginMemory()
+    if (!saved) return
+    const current = ++generation
+    isBusy.value = true
+    token.value = saved.accessToken // 供身份验证请求使用；user 仍为空，不授予页面访问权限。
+    try {
+      const identity = await fetchCurrentUser(saved.accessToken)
+      if (current !== generation) return
+      if (Date.now() >= Math.min(saved.tokenExpiresAt, saved.restoreUntil)) { token.value = ''; clearLoginMemory(); return }
+      token.value = saved.accessToken
+      tokenExpiresAt = saved.tokenExpiresAt
+      user.value = identity
+      sessionVersion.value++
+      scheduleExpiry()
+      rememberSession()
+    } catch {
+      if (current === generation) {
+        token.value = ''
+        clearLoginMemory()
+        notice.value = '无法恢复登录，请重新登录。'
+      }
+    } finally { if (current === generation) isBusy.value = false }
+  }
 
   function logout(message = '已退出登录。') {
+    clearLoginMemory()
+    tokenExpiresAt = 0
     generation++
     sessionVersion.value++
     useKnowledgeBaseStore().reset()
@@ -45,8 +82,9 @@ export const useAuthStore = defineStore('auth', () => {
       useKnowledgeBaseStore().reset()
       token.value = result.accessToken
       user.value = result.user
-      expiryTimer = setTimeout(() => logout('登录已到期，请重新登录。'), result.expiresIn * 1000)
-      expiryTimer.unref?.()
+      tokenExpiresAt = Date.now() + result.expiresIn * 1000
+      scheduleExpiry()
+      rememberSession()
       return { success: true }
     } catch (error) {
       return { error: error.response?.status === 401
@@ -80,5 +118,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { canReadKnowledgeBases, canCreateKnowledgeBases, canEditKnowledgeBases, canDeleteKnowledgeBases, canManageKnowledgeBases, roleLabel, accessToken, sessionVersion, user, isLoggedIn, isBusy, notice, login, logout, verifySession }
+  return { restoreSession, rememberSession, canReadKnowledgeBases, canCreateKnowledgeBases, canEditKnowledgeBases, canDeleteKnowledgeBases, canManageKnowledgeBases, roleLabel, accessToken, sessionVersion, user, isLoggedIn, isBusy, notice, login, logout, verifySession }
 })
