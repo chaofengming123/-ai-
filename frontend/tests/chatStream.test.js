@@ -4,6 +4,18 @@ import { readChatEvents, sendChatStream } from '../src/api/chatStream.js'
 import { createStreamConversation } from '../src/utils/streamConversation.js'
 
 const event = (name, value) => `event: ${name}\r\ndata: ${JSON.stringify(value)}\r\n\r\n`
+test('assistant accepts JSON failures alongside SSE and preserves upstream error without retry', async () => {
+  let calls = 0
+  const auth = { sessionVersion: 1, accessToken: 'test', isLoggedIn: true }
+  await assert.rejects(sendChatStream([], new AbortController().signal, () => {}, auth, async (url, options) => {
+    calls++
+    assert.equal(url, '/api/chat/assistant')
+    assert.equal(options.headers.Accept, 'text/event-stream, application/json')
+    return new Response(JSON.stringify({ message: '模型服务暂时限流或额度不足' }), { status: 503 })
+  }, { mode: 'general' }), /限流或额度不足/)
+  assert.equal(calls, 1)
+  assert.equal(auth.isLoggedIn, true)
+})
 function body(text) {
   const bytes = new TextEncoder().encode(text)
   return new ReadableStream({ start(controller) {

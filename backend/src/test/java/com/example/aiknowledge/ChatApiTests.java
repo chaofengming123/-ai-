@@ -166,6 +166,25 @@ class ChatApiTests {
         stall=false;
         assertEquals(200,request("POST","/api/chat",question,token).statusCode());
     }
+    @Test void sseAcceptHeaderDoesNotHideProviderErrorsBeforeStreamStarts() throws Exception {
+        signIn();
+        for(String path:List.of("/api/chat/stream","/api/chat/assistant")) {
+            for(String accept:List.of("text/event-stream","text/event-stream, application/json")) {
+                status=429; response="private upstream detail";
+                String payload=path.endsWith("assistant")?question.replaceFirst("\\{","{\"mode\":\"general\","):question;
+                var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+path))
+                    .header("Content-Type","application/json").header("Accept",accept)
+                    .header("Authorization","Bearer "+token).POST(HttpRequest.BodyPublishers.ofString(payload)).build();
+                int before=calls.get();
+                var result=HttpClient.newHttpClient().send(request,HttpResponse.BodyHandlers.ofString());
+                assertEquals(503,result.statusCode(),result.body());
+                assertTrue(result.headers().firstValue("content-type").orElse("").contains("application/json"));
+                assertTrue(json.readTree(result.body()).path("message").asText().contains("限流"));
+                assertFalse(result.body().contains(response));
+                assertEquals(before+1,calls.get());
+            }
+        }
+    }
     @Test void absentConfigurationDoesNotFakeAReply() {
         var client=new LlmClient("","","",45,"max_tokens","disabled");
         assertFalse(client.configuration().configured());

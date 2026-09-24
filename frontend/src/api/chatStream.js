@@ -50,7 +50,7 @@ export async function sendChatStream(messages, signal, onDelta, auth, fetcher = 
   try {
     const response = await fetcher(options ? '/api/chat/assistant' : '/api/chat/stream', {
       method: 'POST', signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', Authorization: `Bearer ${auth.accessToken}` },
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json', Authorization: `Bearer ${auth.accessToken}` },
       body: JSON.stringify({ messages, ...options }),
     })
     if (!response.ok) {

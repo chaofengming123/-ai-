@@ -12,7 +12,9 @@ public class ApiExceptionHandler {
     public record ErrorResponse(String message) { }
     @ExceptionHandler(ChatException.class)
     public ResponseEntity<ErrorResponse> handleChat(ChatException error) {
-        return ResponseEntity.status(error.status()).body(new ErrorResponse(error.getMessage()));
+        // 流开始前的错误返回 JSON，包括只声明接收 SSE 的旧版客户端。
+        return ResponseEntity.status(error.status()).contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .cacheControl(org.springframework.http.CacheControl.noStore()).body(new ErrorResponse(error.getMessage()));
     }
 
     @ExceptionHandler(DocumentException.class)

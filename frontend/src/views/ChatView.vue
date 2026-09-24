@@ -17,6 +17,8 @@ const { messages, draft, isBusy, error, notice, send, reset, stop } = createStre
   (messages, signal, delta) => sendChatStream(messages, signal, delta, auth, fetch,
     { mode: canRead.value ? mode.value : 'general', knowledgeBaseId: baseId.value ? Number(baseId.value) : null }), () => auth.sessionVersion)
 watch([mode, baseId], reset)
+// 未收到任何文字的失败请求不留下空白 AI 气泡；错误统一在输入框上方提示。
+const visibleMessages = computed(() => messages.value.filter(message => message.role !== 'assistant' || message.content))
 watch(() => auth.sessionVersion, reset)
 const configuration = ref(null)
 const configurationError = ref('')
@@ -69,13 +71,12 @@ function submit() { if (canChat.value && configuration.value?.configured) void s
       <p v-if="configuration && !configuration.configured" class="loading-notice">模型尚未配置，请联系管理员完成配置。</p>
       <div ref="transcript" class="chat-transcript" role="log" aria-label="对话记录" aria-live="polite">
         <div v-if="!messages.length" class="chat-empty"><h2>今天想了解什么？</h2><p>试试询问资料中的流程、制度，或直接提出一个日常问题。需要严格依据文档时请选择“仅知识库”。</p></div>
-        <article v-for="(message, index) in messages" :key="index" class="chat-message" :class="message.role">
+        <article v-for="(message, index) in visibleMessages" :key="index" class="chat-message" :class="message.role">
           <strong>{{ message.role === 'user' ? '你' : 'AI' }}</strong>
           <p>{{ message.content }}</p>
           <span v-if="message.mode" class="demo-badge">{{ message.mode === 'knowledge' ? '知识库回答' : '普通 AI 回答' }}</span>
           <small v-if="message.notice" class="answer-notice">{{ message.notice }}</small>
           <details v-for="source in message.sources" :key="source.sourceId" class="answer-source"><summary>[{{ source.sourceId }}] {{ source.knowledgeBaseName }} / {{ source.fileName }}</summary><p>{{ source.text }}</p></details>
-          <small v-if="message.incomplete">回复未完成 · 本轮未加入后续上下文</small>
         </article>
         <p v-if="isBusy" role="status">正在检索资料或生成回复，请稍候……</p>
       </div>

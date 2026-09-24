@@ -154,6 +154,11 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 12px; }
 .document-list { list-style: none; padding: 0; }
 .document-list li { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 20px; margin-bottom: 12px; background: white; border: 1px solid #dfe7e1; border-radius: 10px; }
 .document-list strong { overflow-wrap: anywhere; }
+.document-list > .document-item { display: block; }
+.document-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.document-row > div:first-child { min-width: 0; }
+.document-item > .chunk-panel { margin-top: 16px; width: 100%; box-sizing: border-box; }
+@media (max-width: 650px) { .document-row { align-items: flex-start; flex-direction: column; } }
 .document-list small { display: block; margin-top: 8px; color: #63736b; }
 .document-list .demo-badge { flex-shrink: 0; }
 .document-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 12px; flex-shrink: 0; }

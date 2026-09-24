@@ -164,7 +164,8 @@ async function submit() {
     <p v-else-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
     <div v-else-if="selectedId && !documents.length" class="empty-panel">这个知识库还没有上传文档。</div>
     <ul v-else class="document-list" aria-label="已上传文档">
-      <li v-for="item in documents" :key="item.id">
+      <li v-for="item in documents" :key="item.id" class="document-item">
+        <div class="document-row">
         <div><strong>{{ item.fileName }}</strong><small>{{ item.fileType.toUpperCase() }} · {{ formatFileSize(item.fileSize) }} · {{ item.createdAt.replace('T', ' ') }}</small></div>
         <div class="document-actions">
           <span class="demo-badge">{{ item.status === 'UPLOADED' ? '已上传' : item.status }}</span>
@@ -173,10 +174,11 @@ async function submit() {
           <button v-if="canIndex" type="button" class="secondary-button" @click="closePreview(); chunkDocument = null; indexDocument = item">文档索引</button>
           <button v-if="canRead" type="button" class="secondary-button" :disabled="downloadingId !== null" :aria-label="`下载 ${item.fileName}`" @click="download(item)">{{ downloadingId === item.id ? '正在下载……' : '下载原文件' }}</button>
         </div>
+        </div>
+        <DocumentIndexPanel v-if="indexDocument?.id === item.id && canRead" :key="item.id" :document="item" @close="indexDocument = null" />
       </li>
     </ul>
     <DocumentChunkPreview v-if="chunkDocument && canRead" :key="chunkDocument.id" :document="chunkDocument" @close="chunkDocument = null" />
-    <DocumentIndexPanel v-if="indexDocument && canRead" :key="indexDocument.id" :document="indexDocument" @close="indexDocument = null" />
     <section v-if="preview || previewError || previewingId !== null" class="empty-panel" aria-label="文档正文预览">
       <button type="button" class="secondary-button" @click="closePreview">关闭预览</button>
       <p v-if="previewingId !== null" role="status">正在读取文件并提取正文……</p>
