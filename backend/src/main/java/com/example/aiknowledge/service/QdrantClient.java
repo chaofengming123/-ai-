@@ -20,12 +20,22 @@ public class QdrantClient {
     public QdrantClient(@Value("${app.qdrant.endpoint:http://127.0.0.1:6333}") String endpoint) {
         this.endpoint=endpoint.strip().replaceAll("/+$", "");
     }
+    static void validateEndpoint(String endpoint) {
+        try {
+            var uri=URI.create(endpoint);
+            String host=Objects.toString(uri.getHost(),"").toLowerCase(Locale.ROOT);
+            // 本机开发使用回环地址；Compose 后端通过固定服务名和端口访问 Qdrant。
+            boolean local=Set.of("127.0.0.1","localhost","[::1]").contains(host);
+            boolean compose="qdrant".equals(host) && uri.getPort()==6333;
+            if("http".equals(uri.getScheme()) && (local || compose)
+                && uri.getPort()!=0 && uri.getPort()<=65535
+                && uri.getUserInfo()==null && uri.getQuery()==null && uri.getFragment()==null
+                && uri.getPath().isEmpty()) return;
+        } catch(IllegalArgumentException ignored) { }
+        throw new ChatException(503,"Qdrant 地址需为本机 HTTP 服务根地址，或 Docker 内部地址 http://qdrant:6333。");
+    }
     JsonNode call(String method,String path,Object body,boolean allowMissing) {
-        // 本课只接本机 Docker Qdrant；云端鉴权与部署留到后续课程。
-        var uri=URI.create(endpoint);
-        if(!"http".equals(uri.getScheme()) || !Set.of("127.0.0.1","localhost","[::1]").contains(Objects.toString(uri.getHost(),""))
-            || uri.getUserInfo()!=null || uri.getQuery()!=null || uri.getFragment()!=null || !uri.getPath().isEmpty())
-            throw new ChatException(503,"Qdrant 地址需为本机 HTTP 服务根地址。");
+        validateEndpoint(endpoint);
         var request=HttpRequest.newBuilder(URI.create(endpoint+path)).timeout(Duration.ofSeconds(10))
             .header("Content-Type","application/json").method(method,body==null?HttpRequest.BodyPublishers.noBody():
                 HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build();

@@ -2,6 +2,8 @@
 
 Vue 3 + Spring Boot + MySQL 的团队知识空间，支持权限管理、文档上传与索引、知识库检索及统一 AI 问答。MinIO 保存原文件，Qdrant 保存向量，Redis 缓存问题向量。
 
+Qdrant 地址：macOS / Windows 在本机直接启动后端时使用 `http://127.0.0.1:6333`；整套 Docker 部署使用 `http://qdrant:6333`（Compose 已配置）。容器里的 `127.0.0.1` 指向容器自身，不能代替 Qdrant 服务名。升级修复后，可对之前失败的文档重新提交索引任务。
+
 ## 功能与权限
 
 | 功能 | 普通用户 USER | 编辑者 EDITOR | 管理员 ADMIN |
